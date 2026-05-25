@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import StockPills from '@/components/StockPills';
+import NewsletterSignup from '@/components/NewsletterSignup';
 
 interface Article {
   title: string;
@@ -358,7 +359,11 @@ export default function Home() {
         )}
       </div>
 
-      <footer className="border-t border-gray-200 mt-12 py-6 text-center text-xs text-gray-400">
+      <div className="max-w-6xl mx-auto px-4 pb-12">
+        <NewsletterSignup />
+      </div>
+
+      <footer className="border-t border-gray-200 py-6 text-center text-xs text-gray-400">
         InvestRadar · Powered by NewsAPI · Phase 1 MVP
       </footer>
     </div>

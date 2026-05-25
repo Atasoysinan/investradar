@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# subscriber data (contains real emails)
+/data/subscribers.json
+
+# vim swap files
+*.swp
+*.swo
+*.swn
