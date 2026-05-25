@@ -36,6 +36,8 @@ export default function MarketsPage() {
   const [selected, setSelected] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState('Watchlist');
+  const [indexData, setIndexData] = useState<any[]>([]);
+  const [indexLoading, setIndexLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -50,6 +52,17 @@ export default function MarketsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (activeTab === 'Watchlist') return;
+    setIndexLoading(true);
+    setIndexData([]);
+    const tabParam = activeTab === 'S&P 500' ? 'sp500' : activeTab === 'NASDAQ' ? 'nasdaq' : 'penny';
+    fetch(`/api/market?type=index-quotes&tab=${tabParam}`)
+      .then(r => r.json())
+      .then(data => { setIndexData(data); setIndexLoading(false); })
+      .catch(() => setIndexLoading(false));
+  }, [activeTab]);
 
   const gainers = quotes.filter(q => q.dp > 0).sort((a, b) => b.dp - a.dp).slice(0, 3);
   const losers = quotes.filter(q => q.dp < 0).sort((a, b) => a.dp - b.dp).slice(0, 3);
@@ -143,8 +156,55 @@ export default function MarketsPage() {
           </div>
 
           {activeTab !== 'Watchlist' ? (
-            <div className="py-20 text-center text-gray-400 text-sm">
-              Coming soon — loading full index data
+            <div>
+              {indexLoading ? (
+                <div className="text-center py-16 text-gray-400">
+                  <div className="text-lg font-medium mb-2">Loading {activeTab} data...</div>
+                  <div className="text-sm">Fetching live quotes — this takes ~30 seconds due to API rate limits</div>
+                </div>
+              ) : indexData.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                      <th className="text-left py-3 px-4">Symbol</th>
+                      <th className="text-right py-3 px-4">Price</th>
+                      <th className="text-right py-3 px-4">Change</th>
+                      <th className="text-right py-3 px-4">% Change</th>
+                      <th className="text-right py-3 px-4">High</th>
+                      <th className="text-right py-3 px-4">Low</th>
+                      <th className="text-right py-3 px-4">News</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {indexData.filter(q => q.c > 0).map(quote => (
+                      <tr key={quote.symbol} className="hover:bg-blue-50 cursor-pointer transition-colors">
+                        <td className="py-3 px-4 font-bold text-gray-900 text-sm">{quote.symbol}</td>
+                        <td className="py-3 px-4 text-right text-gray-700">${quote.c.toFixed(2)}</td>
+                        <td className={`py-3 px-4 text-right ${quote.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {quote.d >= 0 ? '+' : ''}{quote.d.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${quote.dp >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {quote.dp >= 0 ? '▲' : '▼'} {Math.abs(quote.dp).toFixed(2)}%
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.h.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.l.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-right">
+                          <button
+                            onClick={() => setSelected(quote.symbol)}
+                            className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            📰 View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-16 text-gray-400 text-sm">Click a tab to load live data</div>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
