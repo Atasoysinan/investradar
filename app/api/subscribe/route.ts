@@ -15,9 +15,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { data: audiences } = await resend.audiences.list();
-    const audienceId = audiences?.[0]?.id;
-    if (!audienceId) throw new Error('No Resend audience found.');
+    const audienceData = await resend.audiences.list();
+    const audienceId = audienceData.data?.data?.[0]?.id;
+    if (!audienceId) throw new Error('No audience found');
 
     await resend.contacts.create({
       email,
