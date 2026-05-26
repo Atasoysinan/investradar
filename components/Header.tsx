@@ -1,0 +1,50 @@
+'use client';
+
+import { useSession, signIn, signOut } from 'next-auth/react';
+import Image from 'next/image';
+
+export default function Header() {
+  const { data: session, status } = useSession();
+
+  return (
+    <div className="flex items-center gap-3">
+      {status === 'loading' ? (
+        <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
+      ) : session ? (
+        <>
+          {session.user?.image && (
+            <Image
+              src={session.user.image}
+              alt={session.user.name || 'User'}
+              width={32}
+              height={32}
+              className="rounded-full"
+            />
+          )}
+          <span className="text-sm text-gray-700 font-medium hidden sm:block">
+            {session.user?.name}
+          </span>
+          <button
+            onClick={() => signOut()}
+            className="text-xs text-gray-500 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors font-medium"
+          >
+            Sign out
+          </button>
+        </>
+      ) : (
+        <button
+          onClick={() => signIn('google')}
+          className="flex items-center gap-2 text-sm font-medium bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-1.5 rounded-lg transition-colors shadow-sm"
+        >
+          <svg width="16" height="16" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M43.611 20.083H42V20H24V28H35.303C33.654 32.657 29.223 36 24 36C17.373 36 12 30.627 12 24C12 17.373 17.373 12 24 12C27.059 12 29.842 13.154 31.961 15.039L37.618 9.382C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24C4 35.045 12.955 44 24 44C35.045 44 44 35.045 44 24C44 22.659 43.862 21.35 43.611 20.083Z" fill="#FFC107"/>
+            <path d="M6.306 14.691L12.877 19.51C14.655 15.108 18.961 12 24 12C27.059 12 29.842 13.154 31.961 15.039L37.618 9.382C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691Z" fill="#FF3D00"/>
+            <path d="M24 44C29.166 44 33.86 42.023 37.409 38.808L31.219 33.57C29.211 35.092 26.715 36 24 36C18.798 36 14.381 32.683 12.717 28.054L6.195 33.079C9.505 39.556 16.227 44 24 44Z" fill="#4CAF50"/>
+            <path d="M43.611 20.083H42V20H24V28H35.303C34.511 30.237 33.049 32.166 31.217 33.572L31.219 33.571L37.409 38.809C36.971 39.207 44 34 44 24C44 22.659 43.862 21.35 43.611 20.083Z" fill="#1976D2"/>
+          </svg>
+          Sign in with Google
+        </button>
+      )}
+    </div>
+  );
+}
