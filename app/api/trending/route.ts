@@ -29,27 +29,21 @@ const MOCK_REDDIT = [
 function extractTickers(text: string): string[] {
   const seen = new Set<string>();
   const tickers: string[] = [];
-
   for (const m of text.matchAll(/\$([A-Z]{1,5})/g)) {
     const t = m[1];
     if (!seen.has(t)) { seen.add(t); tickers.push(t); }
   }
-
   for (const m of text.matchAll(/(?<![A-Z$])([A-Z]{2,5})(?![A-Z])/g)) {
     const t = m[1];
     if (!seen.has(t) && !NOISE_WORDS.has(t)) { seen.add(t); tickers.push(t); }
   }
-
   return tickers.slice(0, 5);
 }
 
 async function fetchReddit(subreddit: string) {
   const res = await fetch(
     `https://www.reddit.com/r/${subreddit}/hot.json?limit=10&t=day`,
-    {
-      headers: { 'User-Agent': 'InvestRadar/1.0 (https://investradar.live)' },
-      cache: 'no-store',
-    }
+    { headers: { 'User-Agent': 'InvestRadar/1.0 (https://investradar.live)' }, cache: 'no-store' }
   );
   if (!res.ok) throw new Error(`Reddit ${subreddit} returned ${res.status}`);
   const json = await res.json();
@@ -59,24 +53,25 @@ async function fetchReddit(subreddit: string) {
 }
 
 export async function GET() {
-  const [yahooResult, redditRaw] = await Promise.allSettled([
+  const [yahooResult, redditRaw, coinsResult] = await Promise.allSettled([
     fetch('https://query1.finance.yahoo.com/v1/finance/trending/US?count=10', {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       cache: 'no-store',
     }).then(r => r.json()),
     fetchReddit('stocks').catch(() => fetchReddit('wallstreetbets')),
+    fetch(
+      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false',
+      { headers: { 'Accept': 'application/json' }, cache: 'no-store' }
+    ).then(r => r.json()),
   ]);
 
   const trending: { symbol: string; rank: number }[] = [];
   if (yahooResult.status === 'fulfilled') {
     const quotes: { symbol: string }[] = yahooResult.value?.finance?.result?.[0]?.quotes || [];
-    quotes.slice(0, 10).forEach((q, i) => {
-      trending.push({ symbol: q.symbol, rank: i + 1 });
-    });
+    quotes.slice(0, 10).forEach((q, i) => trending.push({ symbol: q.symbol, rank: i + 1 }));
   }
 
   let reddit: { title: string; score: number; subreddit: string; tickers: string[]; url: string }[];
-
   if (redditRaw.status === 'fulfilled') {
     reddit = redditRaw.value.slice(0, 10).map((p: RedditChild) => ({
       title: p.data.title,
@@ -89,5 +84,17 @@ export async function GET() {
     reddit = MOCK_REDDIT;
   }
 
-  return NextResponse.json({ trending, reddit });
+  const coins: { id: string; symbol: string; name: string; price_change_percentage_24h: number }[] = [];
+  if (coinsResult.status === 'fulfilled' && Array.isArray(coinsResult.value)) {
+    for (const c of coinsResult.value.slice(0, 10)) {
+      coins.push({
+        id: c.id,
+        symbol: c.symbol,
+        name: c.name,
+        price_change_percentage_24h: c.price_change_percentage_24h,
+      });
+    }
+  }
+
+  return NextResponse.json({ trending, reddit, coins });
 }

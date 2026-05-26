@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import StockPills from '@/components/StockPills';
 import NewsletterSignup from '@/components/NewsletterSignup';
 import Header from '@/components/Header';
@@ -122,15 +123,15 @@ export default function Home() {
     <div className="min-h-screen bg-[#f5f6f7] text-gray-900">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm text-white">IR</div>
             <span className="text-xl font-bold text-gray-900">InvestRadar</span>
             <span className="text-xs text-gray-400 hidden sm:block">Financial & Geopolitical Intelligence</span>
-          </div>
+          </Link>
           <div className="flex items-center gap-4">
-            <a href="/markets" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block">
+            <Link href="/markets" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block">
               Markets
-            </a>
+            </Link>
             <form onSubmit={handleSearch} className="flex gap-2">
               <input
                 type="text"
