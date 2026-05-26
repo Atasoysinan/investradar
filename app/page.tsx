@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import StockPills from '@/components/StockPills';
 import NewsletterSignup from '@/components/NewsletterSignup';
+import Header from '@/components/Header';
 
 interface Article {
   title: string;
@@ -125,21 +126,24 @@ export default function Home() {
             <span className="text-xl font-bold text-gray-900">InvestRadar</span>
             <span className="text-xs text-gray-400 hidden sm:block">Financial & Geopolitical Intelligence</span>
           </div>
-          <a href="/markets" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block">
-            Markets
-          </a>
-          <form onSubmit={handleSearch} className="flex gap-2">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search markets, companies, topics..."
-              className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-sm w-64 focus:outline-none focus:border-blue-500 text-gray-900 placeholder-gray-400"
-            />
-            <button type="submit" className="bg-gray-900 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-              Search
-            </button>
-          </form>
+          <div className="flex items-center gap-4">
+            <a href="/markets" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block">
+              Markets
+            </a>
+            <form onSubmit={handleSearch} className="flex gap-2">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Search markets, companies, topics..."
+                className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-sm w-48 sm:w-64 focus:outline-none focus:border-blue-500 text-gray-900 placeholder-gray-400"
+              />
+              <button type="submit" className="bg-gray-900 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Search
+              </button>
+            </form>
+            <Header />
+          </div>
         </div>
       </header>
 

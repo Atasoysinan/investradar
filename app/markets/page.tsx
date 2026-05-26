@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import StockNewsModal from '@/components/StockNewsModal';
+import Header from '@/components/Header';
 
 const WATCHLIST = [
   { symbol: 'SPY', name: 'S&P 500 ETF' },
@@ -79,13 +80,16 @@ export default function MarketsPage() {
             <span className="text-gray-300">/</span>
             <span className="text-gray-500 font-medium">Markets</span>
           </div>
-          <button
-            onClick={load}
-            className="text-xs text-gray-600 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-1 rounded font-medium transition-colors flex items-center gap-1"
-          >
-            ↻ Refresh
-            {lastUpdated && <span className="text-gray-400 ml-1">· {lastUpdated.toLocaleTimeString()}</span>}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={load}
+              className="text-xs text-gray-600 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-1 rounded font-medium transition-colors flex items-center gap-1"
+            >
+              ↻ Refresh
+              {lastUpdated && <span className="text-gray-400 ml-1">· {lastUpdated.toLocaleTimeString()}</span>}
+            </button>
+            <Header />
+          </div>
         </div>
       </header>
 
