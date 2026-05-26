@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 interface TrendingItem {
   symbol: string;
   rank: number;
+  price: number | null;
+  dp: number | null;
 }
 
 interface RedditItem {
@@ -20,6 +22,7 @@ interface CoinBuzzItem {
   id: string;
   symbol: string;
   name: string;
+  current_price: number;
   price_change_percentage_24h: number;
 }
 
@@ -38,6 +41,18 @@ const SUBREDDIT_COLORS: Record<string, string> = {
   'r/stocks': 'bg-blue-900 text-blue-300',
   'r/investing': 'bg-green-900 text-green-300',
 };
+
+function fmtStockPrice(p: number): string {
+  return p >= 1000
+    ? `$${p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `$${p.toFixed(2)}`;
+}
+
+function fmtCoinPrice(p: number): string {
+  if (p >= 1000) return `$${p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (p >= 1) return `$${p.toFixed(2)}`;
+  return `$${p.toFixed(4)}`;
+}
 
 export default function MarketBuzz() {
   const router = useRouter();
@@ -63,7 +78,7 @@ export default function MarketBuzz() {
         <div className="h-3 bg-gray-700 rounded w-1/3" />
         <div className="h-2.5 bg-gray-800 rounded w-1/2" />
       </div>
-      <div className="h-5 bg-gray-700 rounded w-10 ml-3 flex-shrink-0" />
+      <div className="h-5 bg-gray-700 rounded w-16 ml-3 flex-shrink-0" />
     </div>
   ));
 
@@ -98,14 +113,28 @@ export default function MarketBuzz() {
       <div className="divide-y divide-gray-800">
         {loading ? skeleton : activeTab === 'trending' ? (
           data?.trending.length ? data.trending.map((item) => (
-            <div key={item.symbol} className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-800 transition-colors">
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-bold w-5 text-right flex-shrink-0 ${RANK_COLORS[item.rank - 1] ?? 'text-gray-500'}`}>
-                  #{item.rank}
-                </span>
-                <span className="text-green-400 font-bold text-sm">${item.symbol}</span>
+            <div
+              key={item.symbol}
+              onClick={() => router.push(`/stocks/${item.symbol}`)}
+              className="px-3 py-2.5 flex items-center gap-2 hover:bg-gray-800 transition-colors cursor-pointer"
+            >
+              <span className={`text-xs font-bold w-5 text-right flex-shrink-0 ${RANK_COLORS[item.rank - 1] ?? 'text-gray-500'}`}>
+                #{item.rank}
+              </span>
+              <span className="text-green-400 font-bold text-sm w-14 flex-shrink-0">${item.symbol}</span>
+              <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                {item.price != null ? (
+                  <>
+                    <span className="text-white font-semibold text-xs">{fmtStockPrice(item.price)}</span>
+                    <span className={`text-xs font-semibold flex-shrink-0 ${(item.dp ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {(item.dp ?? 0) >= 0 ? '▲' : '▼'} {Math.abs(item.dp ?? 0).toFixed(2)}%
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-gray-600 text-xs">—</span>
+                )}
               </div>
-              <span className="text-xs bg-blue-900 text-blue-300 px-2 py-0.5 rounded-full">Yahoo</span>
+              <span className="text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded flex-shrink-0">Yahoo</span>
             </div>
           )) : <p className="px-4 py-8 text-gray-500 text-xs text-center">No trending data</p>
 
@@ -143,23 +172,22 @@ export default function MarketBuzz() {
             <div
               key={coin.id}
               onClick={() => router.push(`/crypto/${coin.id}`)}
-              className="px-4 py-2.5 flex items-center justify-between hover:bg-gray-800 transition-colors cursor-pointer"
+              className="px-3 py-2.5 flex items-center gap-2 hover:bg-gray-800 transition-colors cursor-pointer"
             >
-              <div className="flex items-center gap-3">
-                <span className={`text-xs font-bold w-5 text-right flex-shrink-0 ${RANK_COLORS[i] ?? 'text-gray-500'}`}>
-                  #{i + 1}
-                </span>
-                <div>
-                  <span className="text-green-400 font-bold text-sm uppercase">{coin.symbol}</span>
-                  <p className="text-gray-500 text-xs">{coin.name}</p>
-                </div>
+              <span className={`text-xs font-bold w-5 text-right flex-shrink-0 ${RANK_COLORS[i] ?? 'text-gray-500'}`}>
+                #{i + 1}
+              </span>
+              <div className="w-14 flex-shrink-0">
+                <span className="text-green-400 font-bold text-xs uppercase">{coin.symbol}</span>
+                <p className="text-gray-500 text-xs truncate">{coin.name}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs font-semibold ${coin.price_change_percentage_24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+              <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
+                <span className="text-white font-semibold text-xs">{fmtCoinPrice(coin.current_price)}</span>
+                <span className={`text-xs font-semibold flex-shrink-0 ${coin.price_change_percentage_24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                   {coin.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
                 </span>
-                <span className="text-xs bg-purple-900 text-purple-300 px-1.5 py-0.5 rounded">CG</span>
               </div>
+              <span className="text-xs bg-purple-900 text-purple-300 px-1.5 py-0.5 rounded flex-shrink-0">CG</span>
             </div>
           )) : <p className="px-4 py-8 text-gray-500 text-xs text-center">No crypto data</p>
         )}

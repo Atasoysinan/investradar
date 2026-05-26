@@ -53,6 +53,8 @@ async function fetchReddit(subreddit: string) {
 }
 
 export async function GET() {
+  const finnhubKey = process.env.FINNHUB_KEY;
+
   const [yahooResult, redditRaw, coinsResult] = await Promise.allSettled([
     fetch('https://query1.finance.yahoo.com/v1/finance/trending/US?count=10', {
       headers: { 'User-Agent': 'Mozilla/5.0' },
@@ -65,10 +67,30 @@ export async function GET() {
     ).then(r => r.json()),
   ]);
 
-  const trending: { symbol: string; rank: number }[] = [];
+  // Build trending list with live Finnhub prices
+  const trending: { symbol: string; rank: number; price: number | null; dp: number | null }[] = [];
   if (yahooResult.status === 'fulfilled') {
-    const quotes: { symbol: string }[] = yahooResult.value?.finance?.result?.[0]?.quotes || [];
-    quotes.slice(0, 10).forEach((q, i) => trending.push({ symbol: q.symbol, rank: i + 1 }));
+    const symbols: string[] = (yahooResult.value?.finance?.result?.[0]?.quotes || [])
+      .slice(0, 10)
+      .map((q: { symbol: string }) => q.symbol);
+
+    const priceResults = await Promise.allSettled(
+      symbols.map(symbol =>
+        fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`, {
+          cache: 'no-store',
+        }).then(r => r.json())
+      )
+    );
+
+    symbols.forEach((symbol, i) => {
+      const q = priceResults[i].status === 'fulfilled' ? priceResults[i].value : null;
+      trending.push({
+        symbol,
+        rank: i + 1,
+        price: q?.c > 0 ? q.c : null,
+        dp: q?.c > 0 ? (q.dp ?? null) : null,
+      });
+    });
   }
 
   let reddit: { title: string; score: number; subreddit: string; tickers: string[]; url: string }[];
@@ -84,13 +106,14 @@ export async function GET() {
     reddit = MOCK_REDDIT;
   }
 
-  const coins: { id: string; symbol: string; name: string; price_change_percentage_24h: number }[] = [];
+  const coins: { id: string; symbol: string; name: string; current_price: number; price_change_percentage_24h: number }[] = [];
   if (coinsResult.status === 'fulfilled' && Array.isArray(coinsResult.value)) {
     for (const c of coinsResult.value.slice(0, 10)) {
       coins.push({
         id: c.id,
         symbol: c.symbol,
         name: c.name,
+        current_price: c.current_price,
         price_change_percentage_24h: c.price_change_percentage_24h,
       });
     }
