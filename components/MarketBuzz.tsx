@@ -10,7 +10,9 @@ interface TrendingItem {
 interface RedditItem {
   title: string;
   score: number;
+  subreddit: string;
   tickers: string[];
+  url: string;
 }
 
 interface TrendingData {
@@ -19,6 +21,12 @@ interface TrendingData {
 }
 
 const RANK_COLORS = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
+
+const SUBREDDIT_COLORS: Record<string, string> = {
+  'r/wallstreetbets': 'bg-orange-900 text-orange-300',
+  'r/stocks': 'bg-blue-900 text-blue-300',
+  'r/investing': 'bg-green-900 text-green-300',
+};
 
 export default function MarketBuzz() {
   const [data, setData] = useState<TrendingData | null>(null);
@@ -104,17 +112,31 @@ export default function MarketBuzz() {
         ) : (
           data?.reddit.length ? (
             data.reddit.map((item, i) => (
-              <div key={i} className="px-4 py-2.5 hover:bg-gray-800 transition-colors">
-                <p className="text-gray-200 text-xs leading-snug">
-                  {item.title.length > 80 ? item.title.substring(0, 80) + '…' : item.title}
-                </p>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <a
+                key={i}
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block px-4 py-2.5 hover:bg-gray-800 transition-colors"
+              >
+                <div className="flex items-start gap-2">
+                  <span className={`text-xs font-bold flex-shrink-0 mt-0.5 ${RANK_COLORS[i] ?? 'text-gray-500'}`}>
+                    #{i + 1}
+                  </span>
+                  <p className="text-gray-200 text-xs leading-snug">
+                    {item.title.length > 60 ? item.title.substring(0, 60) + '…' : item.title}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap pl-5">
                   {item.tickers.slice(0, 3).map(t => (
                     <span key={t} className="text-xs text-green-400 font-semibold">${t}</span>
                   ))}
+                  <span className={`text-xs px-1.5 py-0.5 rounded ${SUBREDDIT_COLORS[item.subreddit] ?? 'bg-gray-700 text-gray-400'}`}>
+                    {item.subreddit}
+                  </span>
                   <span className="text-xs text-gray-500 ml-auto">▲ {item.score.toLocaleString()}</span>
                 </div>
-              </div>
+              </a>
             ))
           ) : (
             <p className="px-4 py-8 text-gray-500 text-xs text-center">No Reddit data</p>
