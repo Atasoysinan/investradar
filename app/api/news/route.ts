@@ -1,5 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const TRUSTED_DOMAINS = 'reuters.com,apnews.com,wsj.com,ft.com,cnbc.com,bloomberg.com,forbes.com,marketwatch.com,businessinsider.com,economist.com,bbc.co.uk,bbc.com,theguardian.com,nytimes.com,washingtonpost.com,politico.com,axios.com,thehill.com,investing.com,seekingalpha.com,benzinga.com,oilprice.com,techcrunch.com,arstechnica.com,wired.com,cnet.com,theverge.com';
+
+const CATEGORY_QUERIES: Record<string, string> = {
+  business: 'business finance economy markets',
+  technology: 'technology',
+  general: 'politics news world',
+  science: 'science',
+  health: 'health medicine',
+};
+
+const REGION_QUERIES: Record<string, string> = {
+  gb: 'UK business economy finance',
+  de: 'Germany business economy finance',
+  fr: 'France business economy finance',
+  jp: 'Japan business economy finance',
+  cn: 'China business economy finance',
+  au: 'Australia business economy finance',
+};
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get('category') || 'business';
@@ -7,25 +26,18 @@ export async function GET(request: NextRequest) {
   const q = searchParams.get('q') || '';
 
   const apiKey = process.env.NEWSAPI_KEY;
+  const domains = `&domains=${TRUSTED_DOMAINS}`;
 
-  const regionKeywords: Record<string, string> = {
-    gb: 'UK business economy finance',
-    de: 'Germany business economy finance',
-    fr: 'France business economy finance',
-    jp: 'Japan business economy finance',
-    cn: 'China business economy finance',
-    au: 'Australia business economy finance',
-  };
-
-  let url = '';
+  let query: string;
   if (q) {
-    url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(q)}&language=en&sortBy=publishedAt&pageSize=30&apiKey=${apiKey}`;
-  } else if (country !== 'us' && regionKeywords[country]) {
-    const regionQ = encodeURIComponent(regionKeywords[country]);
-    url = `https://newsapi.org/v2/everything?q=${regionQ}&sortBy=publishedAt&pageSize=30&apiKey=${apiKey}`;
+    query = q;
+  } else if (country !== 'us' && REGION_QUERIES[country]) {
+    query = REGION_QUERIES[country];
   } else {
-    url = `https://newsapi.org/v2/top-headlines?category=${category}&country=${country}&pageSize=30&apiKey=${apiKey}`;
+    query = CATEGORY_QUERIES[category] || 'business finance';
   }
+
+  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=30${domains}&apiKey=${apiKey}`;
 
   try {
     const res = await fetch(url, { next: { revalidate: 300 } });
