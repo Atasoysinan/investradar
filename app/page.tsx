@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import StockPills from '@/components/StockPills';
 import NewsletterSignup from '@/components/NewsletterSignup';
 import Header from '@/components/Header';
+import MarketBuzz from '@/components/MarketBuzz';
 
 interface Article {
   title: string;
@@ -200,6 +201,9 @@ export default function Home() {
           </div>
         </div>
 
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <div className="flex-1 min-w-0">
+
         {/* Status bar */}
         <div className="flex items-center justify-between mb-5">
           <p className="text-sm text-gray-500 font-medium">
@@ -361,6 +365,12 @@ export default function Home() {
             No articles found. Try a different category or region.
           </div>
         )}
+
+        </div>{/* end left column */}
+        <div className="w-full lg:w-72 flex-shrink-0">
+          <MarketBuzz />
+        </div>
+        </div>{/* end flex row */}
       </div>
 
       <div className="max-w-6xl mx-auto px-4 pb-12">
