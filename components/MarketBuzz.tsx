@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 interface TrendingItem {
   symbol: string;
@@ -36,11 +36,7 @@ type Tab = 'trending' | 'reddit' | 'crypto';
 
 const RANK_COLORS = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
 
-const SUBREDDIT_COLORS: Record<string, string> = {
-  'r/wallstreetbets': 'bg-orange-900 text-orange-300',
-  'r/stocks': 'bg-blue-900 text-blue-300',
-  'r/investing': 'bg-green-900 text-green-300',
-};
+const ROW = 'flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-white/5 transition-colors';
 
 function fmtStockPrice(p: number): string {
   return p >= 1000
@@ -55,7 +51,6 @@ function fmtCoinPrice(p: number): string {
 }
 
 export default function MarketBuzz() {
-  const router = useRouter();
   const [data, setData] = useState<TrendingData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('trending');
@@ -113,11 +108,7 @@ export default function MarketBuzz() {
       <div className="divide-y divide-gray-800">
         {loading ? skeleton : activeTab === 'trending' ? (
           data?.trending.length ? data.trending.map((item) => (
-            <div
-              key={item.symbol}
-              onClick={() => router.push(`/stocks/${item.symbol}`)}
-              className="px-3 py-2.5 flex items-center gap-2 hover:bg-gray-800 transition-colors cursor-pointer"
-            >
+            <Link key={item.symbol} href={`/stocks/${item.symbol}`} className={ROW}>
               <span className={`text-xs font-bold w-5 text-right flex-shrink-0 ${RANK_COLORS[item.rank - 1] ?? 'text-gray-500'}`}>
                 #{item.rank}
               </span>
@@ -134,8 +125,7 @@ export default function MarketBuzz() {
                   <span className="text-gray-600 text-xs">—</span>
                 )}
               </div>
-              <span className="text-xs bg-blue-900 text-blue-300 px-1.5 py-0.5 rounded flex-shrink-0">Yahoo</span>
-            </div>
+            </Link>
           )) : <p className="px-4 py-8 text-gray-500 text-xs text-center">No trending data</p>
 
         ) : activeTab === 'reddit' ? (
@@ -145,7 +135,7 @@ export default function MarketBuzz() {
               href={item.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="block px-4 py-2.5 hover:bg-gray-800 transition-colors"
+              className={`block px-3 py-2.5 cursor-pointer hover:bg-white/5 transition-colors`}
             >
               <div className="flex items-start gap-2">
                 <span className={`text-xs font-bold flex-shrink-0 mt-0.5 ${RANK_COLORS[i] ?? 'text-gray-500'}`}>
@@ -159,9 +149,6 @@ export default function MarketBuzz() {
                 {item.tickers.slice(0, 3).map(t => (
                   <span key={t} className="text-xs text-green-400 font-semibold">${t}</span>
                 ))}
-                <span className={`text-xs px-1.5 py-0.5 rounded ${SUBREDDIT_COLORS[item.subreddit] ?? 'bg-gray-700 text-gray-400'}`}>
-                  {item.subreddit}
-                </span>
                 <span className="text-xs text-gray-500 ml-auto">▲ {item.score.toLocaleString()}</span>
               </div>
             </a>
@@ -169,11 +156,7 @@ export default function MarketBuzz() {
 
         ) : (
           data?.coins?.length ? data.coins.map((coin, i) => (
-            <div
-              key={coin.id}
-              onClick={() => router.push(`/crypto/${coin.id}`)}
-              className="px-3 py-2.5 flex items-center gap-2 hover:bg-gray-800 transition-colors cursor-pointer"
-            >
+            <Link key={coin.id} href={`/crypto/${coin.id}`} className={ROW}>
               <span className={`text-xs font-bold w-5 text-right flex-shrink-0 ${RANK_COLORS[i] ?? 'text-gray-500'}`}>
                 #{i + 1}
               </span>
@@ -187,8 +170,7 @@ export default function MarketBuzz() {
                   {coin.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
                 </span>
               </div>
-              <span className="text-xs bg-purple-900 text-purple-300 px-1.5 py-0.5 rounded flex-shrink-0">CG</span>
-            </div>
+            </Link>
           )) : <p className="px-4 py-8 text-gray-500 text-xs text-center">No crypto data</p>
         )}
       </div>
