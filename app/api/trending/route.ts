@@ -10,15 +10,11 @@ const CRYPTO_TICKER_MAP: Record<string, string> = {
   'XRP-USD': 'ripple',
   'ADA-USD': 'cardano',
   'DOGE-USD': 'dogecoin',
-  'DOT-USD': 'polkadot',
   'AVAX-USD': 'avalanche-2',
-  'MATIC-USD': 'matic-network',
   'LINK-USD': 'chainlink',
   'LTC-USD': 'litecoin',
-  'UNI-USD': 'uniswap',
-  'ATOM-USD': 'cosmos',
-  'PEPE-USD': 'pepe',
   'SHIB-USD': 'shiba-inu',
+  'PEPE-USD': 'pepe',
 };
 
 interface RedditChild {
@@ -86,30 +82,68 @@ export async function GET() {
     ).then(r => r.json()),
   ]);
 
-  // Build trending list with live Finnhub prices
+  // Build trending list with smart per-type price fetching
   const trending: { symbol: string; rank: number; price: number | null; dp: number | null; isCrypto: boolean; cryptoId?: string }[] = [];
   if (yahooResult.status === 'fulfilled') {
     const symbols: string[] = (yahooResult.value?.finance?.result?.[0]?.quotes || [])
       .slice(0, 10)
       .map((q: { symbol: string }) => q.symbol);
 
-    const priceResults = await Promise.allSettled(
-      symbols.map(symbol =>
+    // Categorise each symbol
+    const cryptoSymbols = symbols.filter(s => CRYPTO_TICKER_MAP[s]);
+    const usStockSymbols = symbols.filter(s => !CRYPTO_TICKER_MAP[s] && !s.includes('.'));
+    // symbols with '.' are foreign-exchange tickers (e.g. XFAB.PA, 7203.T) — skip pricing
+
+    // Batch-fetch crypto prices from CoinGecko in a single call
+    const cgIds = cryptoSymbols.map(s => CRYPTO_TICKER_MAP[s]);
+    let cgPrices: Record<string, { usd: number; usd_24h_change: number }> = {};
+    if (cgIds.length > 0) {
+      try {
+        const cgRes = await fetch(
+          `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd&include_24hr_change=true`,
+          { headers: { 'Accept': 'application/json' }, cache: 'no-store' }
+        );
+        if (cgRes.ok) cgPrices = await cgRes.json();
+      } catch { /* leave cgPrices empty */ }
+    }
+
+    // Fetch Finnhub prices for US stocks in parallel
+    const finnhubResults = await Promise.allSettled(
+      usStockSymbols.map(symbol =>
         fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`, {
           cache: 'no-store',
         }).then(r => r.json())
       )
     );
+    const finnhubMap: Record<string, { c: number; dp: number }> = {};
+    usStockSymbols.forEach((symbol, i) => {
+      const q = finnhubResults[i].status === 'fulfilled' ? finnhubResults[i].value : null;
+      if (q?.c > 0) finnhubMap[symbol] = q;
+    });
 
+    // Assemble trending items in original Yahoo rank order
     symbols.forEach((symbol, i) => {
-      const q = priceResults[i].status === 'fulfilled' ? priceResults[i].value : null;
       const cryptoId = CRYPTO_TICKER_MAP[symbol];
+      const isCrypto = !!cryptoId;
+      const isForeign = !isCrypto && symbol.includes('.');
+
+      let price: number | null = null;
+      let dp: number | null = null;
+
+      if (isCrypto && cryptoId && cgPrices[cryptoId]) {
+        price = cgPrices[cryptoId].usd ?? null;
+        dp = cgPrices[cryptoId].usd_24h_change ?? null;
+      } else if (!isForeign && finnhubMap[symbol]) {
+        price = finnhubMap[symbol].c;
+        dp = finnhubMap[symbol].dp;
+      }
+
       trending.push({
         symbol,
         rank: i + 1,
-        price: q?.c > 0 ? q.c : null,
-        dp: q?.c > 0 ? (q.dp ?? null) : null,
-        isCrypto: !!cryptoId,
+        price,
+        dp,
+        isCrypto,
         ...(cryptoId ? { cryptoId } : {}),
       });
     });
