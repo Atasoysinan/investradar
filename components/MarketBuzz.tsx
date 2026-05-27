@@ -8,6 +8,8 @@ interface TrendingItem {
   rank: number;
   price: number | null;
   dp: number | null;
+  isCrypto: boolean;
+  cryptoId?: string;
 }
 
 interface RedditItem {
@@ -108,7 +110,17 @@ export default function MarketBuzz() {
       <div className="divide-y divide-gray-800">
         {loading ? skeleton : activeTab === 'trending' ? (
           data?.trending.length ? data.trending.map((item) => (
-            <Link key={item.symbol} href={`/stocks/${item.symbol}`} className={ROW}>
+            <Link
+              key={item.symbol}
+              href={
+                item.isCrypto && item.cryptoId
+                  ? `/crypto/${item.cryptoId}`
+                  : item.symbol.endsWith('-USD')
+                  ? `/crypto/${item.symbol.replace('-USD', '').toLowerCase()}`
+                  : `/stocks/${item.symbol}`
+              }
+              className={ROW}
+            >
               <span className={`text-xs font-bold w-5 text-right flex-shrink-0 ${RANK_COLORS[item.rank - 1] ?? 'text-gray-500'}`}>
                 #{item.rank}
               </span>

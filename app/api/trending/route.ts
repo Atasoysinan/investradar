@@ -2,6 +2,25 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 300;
 
+const CRYPTO_TICKER_MAP: Record<string, string> = {
+  'BTC-USD': 'bitcoin',
+  'ETH-USD': 'ethereum',
+  'BNB-USD': 'binancecoin',
+  'SOL-USD': 'solana',
+  'XRP-USD': 'ripple',
+  'ADA-USD': 'cardano',
+  'DOGE-USD': 'dogecoin',
+  'DOT-USD': 'polkadot',
+  'AVAX-USD': 'avalanche-2',
+  'MATIC-USD': 'matic-network',
+  'LINK-USD': 'chainlink',
+  'LTC-USD': 'litecoin',
+  'UNI-USD': 'uniswap',
+  'ATOM-USD': 'cosmos',
+  'PEPE-USD': 'pepe',
+  'SHIB-USD': 'shiba-inu',
+};
+
 interface RedditChild {
   data: { title: string; score: number; subreddit: string; permalink: string };
 }
@@ -68,7 +87,7 @@ export async function GET() {
   ]);
 
   // Build trending list with live Finnhub prices
-  const trending: { symbol: string; rank: number; price: number | null; dp: number | null }[] = [];
+  const trending: { symbol: string; rank: number; price: number | null; dp: number | null; isCrypto: boolean; cryptoId?: string }[] = [];
   if (yahooResult.status === 'fulfilled') {
     const symbols: string[] = (yahooResult.value?.finance?.result?.[0]?.quotes || [])
       .slice(0, 10)
@@ -84,11 +103,14 @@ export async function GET() {
 
     symbols.forEach((symbol, i) => {
       const q = priceResults[i].status === 'fulfilled' ? priceResults[i].value : null;
+      const cryptoId = CRYPTO_TICKER_MAP[symbol];
       trending.push({
         symbol,
         rank: i + 1,
         price: q?.c > 0 ? q.c : null,
         dp: q?.c > 0 ? (q.dp ?? null) : null,
+        isCrypto: !!cryptoId,
+        ...(cryptoId ? { cryptoId } : {}),
       });
     });
   }
