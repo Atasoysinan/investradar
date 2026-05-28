@@ -20,7 +20,8 @@ const WATCHLIST = [
   { symbol: 'GLD', name: 'Gold ETF' },
 ];
 
-const TABS = ['Watchlist', 'S&P 500', 'NASDAQ', 'Penny Stocks', 'Crypto'];
+const TABS = ['Watchlist', 'S&P 500', 'NASDAQ', 'Penny Stocks', 'ETFs', 'Crypto'];
+const ETF_CATEGORIES = ['All', 'US Broad', 'European', 'Thematic', 'Bonds', 'Commodities'];
 
 interface Quote {
   symbol: string;
@@ -44,6 +45,26 @@ interface CoinData {
   total_volume: number;
 }
 
+interface PennyStock {
+  symbol: string;
+  name: string;
+  c: number;
+  d: number;
+  dp: number;
+  h: number;
+  l: number;
+  pc: number;
+}
+
+interface EtfQuote {
+  symbol: string;
+  name: string;
+  category: string;
+  c: number;
+  d: number;
+  dp: number;
+}
+
 function formatCompact(n: number): string {
   if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
@@ -57,6 +78,33 @@ function formatCoinPrice(n: number): string {
   return `$${n.toFixed(6)}`;
 }
 
+const IndexSkeleton = () => (
+  <div>
+    <div className="flex items-center gap-2 justify-center py-3 text-xs text-gray-400 border-b border-gray-100">
+      <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+      </svg>
+      Loading live data…
+    </div>
+    <table className="w-full">
+      <tbody className="divide-y divide-gray-100">
+        {[...Array(8)].map((_, i) => (
+          <tr key={i} className="animate-pulse">
+            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-16"/></td>
+            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-20 ml-auto"/></td>
+            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-12 ml-auto"/></td>
+            <td className="py-3 px-4"><div className="h-5 bg-gray-200 rounded w-16 ml-auto"/></td>
+            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
+            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
+            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-10 ml-auto"/></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
+
 export default function MarketsPage() {
   const router = useRouter();
   const [quotes, setQuotes] = useState<Quote[]>([]);
@@ -68,6 +116,11 @@ export default function MarketsPage() {
   const [indexLoading, setIndexLoading] = useState(false);
   const [cryptoData, setCryptoData] = useState<CoinData[]>([]);
   const [cryptoLoading, setCryptoLoading] = useState(false);
+  const [pennyData, setPennyData] = useState<PennyStock[]>([]);
+  const [pennyLoading, setPennyLoading] = useState(false);
+  const [etfData, setEtfData] = useState<EtfQuote[]>([]);
+  const [etfLoading, setEtfLoading] = useState(false);
+  const [etfFilter, setEtfFilter] = useState('All');
 
   const load = async () => {
     setLoading(true);
@@ -84,10 +137,10 @@ export default function MarketsPage() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    if (activeTab === 'Watchlist' || activeTab === 'Crypto') return;
+    if (activeTab !== 'S&P 500' && activeTab !== 'NASDAQ') return;
     setIndexLoading(true);
     setIndexData([]);
-    const tabParam = activeTab === 'S&P 500' ? 'sp500' : activeTab === 'NASDAQ' ? 'nasdaq' : 'penny';
+    const tabParam = activeTab === 'S&P 500' ? 'sp500' : 'nasdaq';
     fetch(`/api/market?type=index-quotes&tab=${tabParam}`)
       .then(r => r.json())
       .then(data => { setIndexData(data); setIndexLoading(false); })
@@ -102,6 +155,26 @@ export default function MarketsPage() {
       .then(r => r.json())
       .then(data => { setCryptoData(Array.isArray(data) ? data : []); setCryptoLoading(false); })
       .catch(() => setCryptoLoading(false));
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'Penny Stocks') return;
+    setPennyLoading(true);
+    setPennyData([]);
+    fetch('/api/penny')
+      .then(r => r.json())
+      .then(data => { setPennyData(Array.isArray(data) ? data : []); setPennyLoading(false); })
+      .catch(() => setPennyLoading(false));
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'ETFs') return;
+    setEtfLoading(true);
+    setEtfData([]);
+    fetch('/api/etfs')
+      .then(r => r.json())
+      .then(data => { setEtfData(Array.isArray(data) ? data : []); setEtfLoading(false); })
+      .catch(() => setEtfLoading(false));
   }, [activeTab]);
 
   const gainers = quotes.filter(q => q.dp > 0).sort((a, b) => b.dp - a.dp).slice(0, 3);
@@ -253,34 +326,11 @@ export default function MarketsPage() {
             </div>
           )}
 
-          {/* S&P 500 / NASDAQ / Penny Stocks tabs */}
-          {activeTab !== 'Watchlist' && activeTab !== 'Crypto' && (
+          {/* S&P 500 / NASDAQ tabs */}
+          {(activeTab === 'S&P 500' || activeTab === 'NASDAQ') && (
             <div>
               {indexLoading ? (
-                <div>
-                  <div className="flex items-center gap-2 justify-center py-3 text-xs text-gray-400 border-b border-gray-100">
-                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-                    </svg>
-                    Loading live data…
-                  </div>
-                  <table className="w-full">
-                    <tbody className="divide-y divide-gray-100">
-                      {[...Array(8)].map((_, i) => (
-                        <tr key={i} className="animate-pulse">
-                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-16"/></td>
-                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-20 ml-auto"/></td>
-                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-12 ml-auto"/></td>
-                          <td className="py-3 px-4"><div className="h-5 bg-gray-200 rounded w-16 ml-auto"/></td>
-                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
-                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
-                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-10 ml-auto"/></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <IndexSkeleton />
               ) : indexData.length > 0 ? (
                 <table className="w-full">
                   <thead>
@@ -327,6 +377,128 @@ export default function MarketsPage() {
                 </table>
               ) : (
                 <div className="text-center py-16 text-gray-400 text-sm">Click a tab to load live data</div>
+              )}
+            </div>
+          )}
+
+          {/* Penny Stocks tab */}
+          {activeTab === 'Penny Stocks' && (
+            <div>
+              {pennyLoading ? (
+                <IndexSkeleton />
+              ) : pennyData.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                      <th className="text-left py-3 px-4">Symbol</th>
+                      <th className="text-left py-3 px-4">Company</th>
+                      <th className="text-right py-3 px-4">Price</th>
+                      <th className="text-right py-3 px-4">Change</th>
+                      <th className="text-right py-3 px-4">% Change</th>
+                      <th className="text-right py-3 px-4">High</th>
+                      <th className="text-right py-3 px-4">Low</th>
+                      <th className="text-right py-3 px-4">Prev Close</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {pennyData.filter(q => q.c > 0).map(quote => (
+                      <tr
+                        key={quote.symbol}
+                        onClick={() => router.push(`/stocks/${quote.symbol}`)}
+                        className="hover:bg-blue-50 cursor-pointer transition-colors"
+                      >
+                        <td className="py-3 px-4 font-bold text-gray-900 text-sm">{quote.symbol}</td>
+                        <td className="py-3 px-4 text-gray-500 text-sm">{quote.name}</td>
+                        <td className="py-3 px-4 text-right text-gray-700">${quote.c.toFixed(2)}</td>
+                        <td className={`py-3 px-4 text-right ${quote.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {quote.d >= 0 ? '+' : ''}{quote.d.toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${quote.dp >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {quote.dp >= 0 ? '▲' : '▼'} {Math.abs(quote.dp).toFixed(2)}%
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.h.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.l.toFixed(2)}</td>
+                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.pc.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                    {pennyData.filter(q => q.c === 0).length === pennyData.length && (
+                      <tr>
+                        <td colSpan={8} className="text-center py-16 text-gray-400 text-sm">
+                          Market closed or data unavailable
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-16 text-gray-400 text-sm">Failed to load penny stock data</div>
+              )}
+            </div>
+          )}
+
+          {/* ETFs tab */}
+          {activeTab === 'ETFs' && (
+            <div>
+              <div className="flex gap-2 px-4 py-3 border-b border-gray-100 overflow-x-auto">
+                {ETF_CATEGORIES.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setEtfFilter(cat)}
+                    className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors ${
+                      etfFilter === cat
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              {etfLoading ? (
+                <IndexSkeleton />
+              ) : etfData.length > 0 ? (
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                      <th className="text-left py-3 px-4">Symbol</th>
+                      <th className="text-left py-3 px-4">Name</th>
+                      <th className="text-left py-3 px-4">Category</th>
+                      <th className="text-right py-3 px-4">Price</th>
+                      <th className="text-right py-3 px-4">Change</th>
+                      <th className="text-right py-3 px-4">% Change</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {etfData
+                      .filter(etf => etfFilter === 'All' || etf.category === etfFilter)
+                      .map(etf => (
+                        <tr
+                          key={etf.symbol}
+                          onClick={() => router.push(`/stocks/${etf.symbol}`)}
+                          className="hover:bg-blue-50 cursor-pointer transition-colors"
+                        >
+                          <td className="py-3 px-4 font-bold text-gray-900 text-sm">{etf.symbol}</td>
+                          <td className="py-3 px-4 text-gray-700 text-sm">{etf.name}</td>
+                          <td className="py-3 px-4">
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">{etf.category}</span>
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-700">${etf.c.toFixed(2)}</td>
+                          <td className={`py-3 px-4 text-right ${etf.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {etf.d >= 0 ? '+' : ''}{etf.d.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${etf.dp >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {etf.dp >= 0 ? '▲' : '▼'} {Math.abs(etf.dp).toFixed(2)}%
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-16 text-gray-400 text-sm">Failed to load ETF data</div>
               )}
             </div>
           )}

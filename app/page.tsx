@@ -132,6 +132,9 @@ export default function Home() {
             <Link href="/markets" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block">
               Markets
             </Link>
+            <Link href="/videos" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block">
+              Videos
+            </Link>
             <form onSubmit={handleSearch} className="flex gap-2">
               <input
                 type="text"

@@ -28,13 +28,20 @@ interface CoinBuzzItem {
   price_change_percentage_24h: number;
 }
 
+interface StocktwitItem {
+  symbol: string;
+  name: string;
+  watchlist_count: number;
+  sentiment: string | null;
+}
+
 interface TrendingData {
   trending: TrendingItem[];
   reddit: RedditItem[];
   coins: CoinBuzzItem[];
 }
 
-type Tab = 'trending' | 'reddit' | 'crypto';
+type Tab = 'trending' | 'social' | 'reddit' | 'crypto';
 
 const RANK_COLORS = ['text-yellow-400', 'text-gray-300', 'text-amber-600'];
 
@@ -54,14 +61,21 @@ function fmtCoinPrice(p: number): string {
 
 export default function MarketBuzz() {
   const [data, setData] = useState<TrendingData | null>(null);
+  const [stocktwitsData, setStocktwitsData] = useState<StocktwitItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('trending');
 
   const load = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/trending');
-      setData(await res.json());
+      const [trendingResult, stocktwitsResult] = await Promise.allSettled([
+        fetch('/api/trending').then(r => r.json()),
+        fetch('/api/stocktwits').then(r => r.json()),
+      ]);
+      if (trendingResult.status === 'fulfilled') setData(trendingResult.value);
+      if (stocktwitsResult.status === 'fulfilled' && Array.isArray(stocktwitsResult.value)) {
+        setStocktwitsData(stocktwitsResult.value);
+      }
     } finally {
       setLoading(false);
     }
@@ -92,7 +106,12 @@ export default function MarketBuzz() {
       </div>
 
       <div className="flex border-b border-gray-700">
-        {([['trending', '🔥 Trending'], ['reddit', '📢 Reddit'], ['crypto', '🪙 Crypto']] as [Tab, string][]).map(([id, label]) => (
+        {([
+          ['trending', '🔥 Trending'],
+          ['social',   '💬 Social'],
+          ['reddit',   '📢 Reddit'],
+          ['crypto',   '🪙 Crypto'],
+        ] as [Tab, string][]).map(([id, label]) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
@@ -139,6 +158,28 @@ export default function MarketBuzz() {
               </div>
             </Link>
           )) : <p className="px-4 py-8 text-gray-500 text-xs text-center">No trending data</p>
+
+        ) : activeTab === 'social' ? (
+          stocktwitsData.length ? stocktwitsData.map((item) => (
+            <Link key={item.symbol} href={`/stocks/${item.symbol}`} className={ROW}>
+              <div className="w-14 flex-shrink-0">
+                <span className="text-green-400 font-bold text-sm">${item.symbol}</span>
+                <p className="text-gray-500 text-xs truncate">{item.name}</p>
+              </div>
+              <div className="flex-1 min-w-0 flex flex-col items-end gap-0.5">
+                <span className="text-gray-400 text-xs">
+                  {item.watchlist_count >= 1000
+                    ? `${(item.watchlist_count / 1000).toFixed(0)}K watching`
+                    : `${item.watchlist_count} watching`}
+                </span>
+                {item.sentiment && (
+                  <span className={`text-xs font-semibold ${item.sentiment === 'Bullish' ? 'text-green-400' : 'text-red-400'}`}>
+                    {item.sentiment}
+                  </span>
+                )}
+              </div>
+            </Link>
+          )) : <p className="px-4 py-8 text-gray-500 text-xs text-center">No social data</p>
 
         ) : activeTab === 'reddit' ? (
           data?.reddit.length ? data.reddit.map((item, i) => (
