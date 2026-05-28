@@ -379,7 +379,7 @@ export default function Home() {
       </div>
 
       <footer className="border-t border-gray-200 py-6 text-center text-xs text-gray-400">
-        InvestRadar · Powered by NewsAPI · Phase 1 MVP
+        © 2026 InvestRadar · Financial &amp; Geopolitical Intelligence
       </footer>
     </div>
   );

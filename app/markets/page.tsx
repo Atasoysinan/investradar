@@ -257,9 +257,29 @@ export default function MarketsPage() {
           {activeTab !== 'Watchlist' && activeTab !== 'Crypto' && (
             <div>
               {indexLoading ? (
-                <div className="text-center py-16 text-gray-400">
-                  <div className="text-lg font-medium mb-2">Loading {activeTab} data…</div>
-                  <div className="text-sm">Fetching live quotes — this takes ~30 seconds due to API rate limits</div>
+                <div>
+                  <div className="flex items-center gap-2 justify-center py-3 text-xs text-gray-400 border-b border-gray-100">
+                    <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Loading live data…
+                  </div>
+                  <table className="w-full">
+                    <tbody className="divide-y divide-gray-100">
+                      {[...Array(8)].map((_, i) => (
+                        <tr key={i} className="animate-pulse">
+                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-16"/></td>
+                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-20 ml-auto"/></td>
+                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-12 ml-auto"/></td>
+                          <td className="py-3 px-4"><div className="h-5 bg-gray-200 rounded w-16 ml-auto"/></td>
+                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
+                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
+                          <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-10 ml-auto"/></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ) : indexData.length > 0 ? (
                 <table className="w-full">

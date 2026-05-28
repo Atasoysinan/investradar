@@ -51,23 +51,23 @@ export default async function CryptoDetailPage({
   const { id } = await params;
   const newsKey = process.env.NEWSAPI_KEY;
 
-  const [coinRes, newsRes] = await Promise.allSettled([
-    fetch(
-      `https://api.coingecko.com/api/v3/coins/${id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`,
-      { headers: { 'Accept': 'application/json' }, next: { revalidate: 60 } }
-    ).then(r => r.json()),
-    fetch(
-      `https://newsapi.org/v2/everything?q=${encodeURIComponent(id)}&domains=${NEWS_DOMAINS}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${newsKey}`,
-      { next: { revalidate: 300 } }
-    ).then(r => r.json()),
-  ]);
+  const coinRes = await fetch(
+    `https://api.coingecko.com/api/v3/coins/${id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`,
+    { headers: { 'Accept': 'application/json' }, next: { revalidate: 60 } }
+  ).then(r => r.json()).catch(() => null);
 
-  const coin: CoinDetail | null = coinRes.status === 'fulfilled' && !coinRes.value.error
-    ? coinRes.value
-    : null;
+  const coinName = coinRes?.name || id;
+  const newsQuery = `${coinName} cryptocurrency price`;
 
-  const articles: Article[] = newsRes.status === 'fulfilled'
-    ? (newsRes.value?.articles || []).filter((a: Article) => a.title !== '[Removed]')
+  const newsRes = await fetch(
+    `https://newsapi.org/v2/everything?q=${encodeURIComponent(newsQuery)}&domains=${NEWS_DOMAINS}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${newsKey}`,
+    { next: { revalidate: 300 } }
+  ).then(r => r.json()).catch(() => null);
+
+  const coin: CoinDetail | null = coinRes && !coinRes.error ? coinRes : null;
+
+  const articles: Article[] = newsRes?.articles
+    ? newsRes.articles.filter((a: Article) => a.title !== '[Removed]')
     : [];
 
   if (!coin) {

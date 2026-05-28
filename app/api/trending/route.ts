@@ -85,9 +85,11 @@ export async function GET() {
   // Build trending list with smart per-type price fetching
   const trending: { symbol: string; rank: number; price: number | null; dp: number | null; isCrypto: boolean; cryptoId?: string }[] = [];
   if (yahooResult.status === 'fulfilled') {
+    const VALID_TICKER = /^[A-Z]{1,5}(-USD)?$/;
     const symbols: string[] = (yahooResult.value?.finance?.result?.[0]?.quotes || [])
-      .slice(0, 10)
-      .map((q: { symbol: string }) => q.symbol);
+      .map((q: { symbol: string }) => q.symbol)
+      .filter((s: string) => VALID_TICKER.test(s) || !!CRYPTO_TICKER_MAP[s])
+      .slice(0, 10);
 
     // Categorise each symbol
     const cryptoSymbols = symbols.filter(s => CRYPTO_TICKER_MAP[s]);

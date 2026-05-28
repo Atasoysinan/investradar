@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
       const symbols = (searchParams.get('symbols') || '').split(',').filter(Boolean).slice(0, 5);
       const quotes = await Promise.allSettled(
         symbols.map(async (sym) => {
-          const res = await fetch(`${BASE}/quote?symbol=${sym}&token=${KEY}`);
+          const res = await fetch(`${BASE}/quote?symbol=${sym}&token=${KEY}`, { next: { revalidate: 60 } });
           const data = await res.json();
           return { symbol: sym, c: data.c ?? 0, dp: data.dp ?? 0 };
         })
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 
       const quotes = await fetchWithDelay(symbolList.map(sym => async () => {
         try {
-          const res = await fetch(`${BASE}/quote?symbol=${sym}&token=${KEY}`);
+          const res = await fetch(`${BASE}/quote?symbol=${sym}&token=${KEY}`, { next: { revalidate: 60 } });
           const data = await res.json();
           return { symbol: sym, c: data.c ?? 0, dp: data.dp ?? 0, h: data.h ?? 0, l: data.l ?? 0, o: data.o ?? 0, pc: data.pc ?? 0, d: data.d ?? 0 };
         } catch {
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
 
     const symbols = symbolsParam ? symbolsParam.split(',') : DEFAULT_SYMBOLS;
     const quotes = await fetchWithDelay(symbols.map(sym => async () => {
-      const res = await fetch(`${BASE}/quote?symbol=${sym}&token=${KEY}`);
+      const res = await fetch(`${BASE}/quote?symbol=${sym}&token=${KEY}`, { next: { revalidate: 60 } });
       const data = await res.json();
       return { symbol: sym, c: data.c ?? 0, dp: data.dp ?? 0, h: data.h ?? 0, l: data.l ?? 0, o: data.o ?? 0, pc: data.pc ?? 0, d: data.d ?? 0 };
     }));

@@ -21,7 +21,11 @@ export default function TickerBar() {
       try {
         const res = await fetch(`/api/market?symbols=${SYMBOLS.join(',')}`);
         const data = await res.json();
-        if (Array.isArray(data)) setQuotes(data);
+        if (Array.isArray(data)) {
+          const valid = data.filter((q: Quote) => q.c > 0);
+          if (valid.length > 0) setQuotes(valid);
+          // if all prices are zero (market closed), keep existing quotes
+        }
       } catch {
         // silently fail — ticker is non-critical
       }

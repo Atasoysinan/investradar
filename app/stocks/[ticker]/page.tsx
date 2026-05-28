@@ -31,23 +31,30 @@ export default async function StockDetailPage({
   const finnhubKey = process.env.FINNHUB_KEY;
   const newsKey = process.env.NEWSAPI_KEY;
 
-  const [quoteRes, profileRes, newsRes] = await Promise.allSettled([
+  const [quoteRes, profileRes] = await Promise.allSettled([
     fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`, {
       next: { revalidate: 60 },
     }).then(r => r.json()),
     fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${finnhubKey}`, {
       next: { revalidate: 3600 },
     }).then(r => r.json()),
-    fetch(
-      `https://newsapi.org/v2/everything?q=${encodeURIComponent(symbol)}&domains=${NEWS_DOMAINS}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${newsKey}`,
-      { next: { revalidate: 300 } }
-    ).then(r => r.json()),
   ]);
 
   const quote = quoteRes.status === 'fulfilled' ? quoteRes.value : null;
   const profile = profileRes.status === 'fulfilled' ? profileRes.value : null;
-  const articles: Article[] = newsRes.status === 'fulfilled'
-    ? (newsRes.value?.articles || []).filter((a: Article) => a.title !== '[Removed]')
+
+  const companyName = profile?.name || '';
+  const newsQuery = companyName
+    ? `${companyName} stock ${symbol}`
+    : `${symbol} stock market`;
+
+  const newsRes = await fetch(
+    `https://newsapi.org/v2/everything?q=${encodeURIComponent(newsQuery)}&domains=${NEWS_DOMAINS}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${newsKey}`,
+    { next: { revalidate: 300 } }
+  ).then(r => r.json()).catch(() => null);
+
+  const articles: Article[] = newsRes?.articles
+    ? newsRes.articles.filter((a: Article) => a.title !== '[Removed]')
     : [];
 
   const hasPrice = quote && quote.c > 0;
