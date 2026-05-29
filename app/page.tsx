@@ -82,6 +82,41 @@ function sourceLabelClass(name: string = '') {
   return 'bg-gray-700 text-white';
 }
 
+const SOURCE_FALLBACKS: Record<string, string> = {
+  'CNBC': 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
+  'Reuters': 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=800&q=80',
+  'Associated Press': 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80',
+  'Bloomberg': 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
+};
+
+const CATEGORY_FALLBACKS: Record<string, string> = {
+  business: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
+  technology: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80',
+  science: 'https://images.unsplash.com/photo-1564325724739-bae0bd08762c?w=800&q=80',
+  health: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&q=80',
+  politics: 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800&q=80',
+};
+
+const DEFAULT_FALLBACK = 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80';
+
+function getArticleImage(article: { urlToImage?: string | null; image?: string | null; source?: { name?: string } }, category?: string): string {
+  if (article.urlToImage) return article.urlToImage;
+  if (article.image) return article.image;
+  const sourceName = article.source?.name || '';
+  if (SOURCE_FALLBACKS[sourceName]) return SOURCE_FALLBACKS[sourceName];
+  if (category && CATEGORY_FALLBACKS[category]) return CATEGORY_FALLBACKS[category];
+  return DEFAULT_FALLBACK;
+}
+
+function decodeHtml(str: string): string {
+  return str
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
 const SectionHeader = ({ children }: { children: React.ReactNode }) => (
   <div className="border-b border-gray-200 pb-3 mb-6">
     <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest">{children}</h2>
@@ -324,16 +359,14 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="flex bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group"
               >
-                {hero.urlToImage && (
-                  <div className="w-3/5 flex-shrink-0" style={{ height: '320px' }}>
-                    <img
-                      src={hero.urlToImage}
-                      alt={hero.title}
-                      className="w-full h-full object-cover"
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    />
-                  </div>
-                )}
+                <div className="w-3/5 flex-shrink-0" style={{ height: '320px' }}>
+                  <img
+                    src={getArticleImage(hero, category)}
+                    alt={decodeHtml(hero.title)}
+                    className="w-full h-full object-cover"
+                    onError={e => { (e.target as HTMLImageElement).src = DEFAULT_FALLBACK; }}
+                  />
+                </div>
                 <div className="flex flex-col justify-center p-8 flex-1">
                   <span className="self-start mb-3 flex items-center gap-1">
                     <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
@@ -342,11 +375,11 @@ export default function Home() {
                     {hero.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
                   </span>
                   <h1 className="text-2xl font-bold text-gray-900 leading-snug mb-3 group-hover:text-blue-700 transition-colors">
-                    {hero.title}
+                    {decodeHtml(hero.title)}
                   </h1>
                   {hero.description && (
                     <p className="text-gray-600 text-sm leading-relaxed line-clamp-3 mb-4">
-                      {hero.description}
+                      {decodeHtml(hero.description)}
                     </p>
                   )}
                   <StockPills headline={hero.title} description={hero.description || ''} />
@@ -366,16 +399,14 @@ export default function Home() {
                     rel="noopener noreferrer"
                     className="bg-white border border-gray-100 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group flex flex-col"
                   >
-                    {article.urlToImage && (
-                      <div className="overflow-hidden bg-gray-100" style={{ height: '180px' }}>
-                        <img
-                          src={article.urlToImage}
-                          alt={article.title}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                        />
-                      </div>
-                    )}
+                    <div className="overflow-hidden bg-gray-100" style={{ height: '180px' }}>
+                      <img
+                        src={getArticleImage(article, category)}
+                        alt={decodeHtml(article.title)}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={e => { (e.target as HTMLImageElement).src = DEFAULT_FALLBACK; }}
+                      />
+                    </div>
                     <div className="p-4 flex flex-col flex-1">
                       <span className="flex items-center gap-1 mb-2">
                         <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">
@@ -384,7 +415,7 @@ export default function Home() {
                         {article.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
                       </span>
                       <h2 className="font-semibold text-gray-900 text-base leading-snug group-hover:text-blue-700 transition-colors line-clamp-3">
-                        {article.title}
+                        {decodeHtml(article.title)}
                       </h2>
                       <StockPills headline={article.title} description={article.description || ''} />
                       <span className="text-xs text-gray-400 mt-auto pt-2">{timeAgo(article.publishedAt)}</span>
@@ -410,7 +441,7 @@ export default function Home() {
                         </span>
                         {article.isLive && <span className="flex-shrink-0 text-xs font-bold text-green-600">🟢 LIVE</span>}
                         <span className="font-medium text-gray-900 text-sm line-clamp-1 group-hover:text-blue-700 transition-colors">
-                          {article.title}
+                          {decodeHtml(article.title)}
                         </span>
                       </div>
                       <StockPills headline={article.title} description={article.description || ''} />
@@ -517,7 +548,7 @@ export default function Home() {
                           <div className="h-28 bg-gray-100 rounded mb-2" />
                         )}
                         <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>
-                        <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{a.title}</p>
+                        <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>
                         <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
                       </a>
                     ))}
@@ -567,7 +598,7 @@ export default function Home() {
                         className="block border-b border-gray-100 py-3 hover:bg-gray-50 px-1 -mx-1 transition-colors group"
                       >
                         <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{a.source?.name}</p>
-                        <p className="text-sm text-gray-800 group-hover:text-black leading-snug font-medium">{a.title}</p>
+                        <p className="text-sm text-gray-800 group-hover:text-black leading-snug font-medium">{decodeHtml(a.title)}</p>
                         <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
                       </a>
                     ))}

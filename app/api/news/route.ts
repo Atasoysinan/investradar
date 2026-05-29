@@ -79,12 +79,16 @@ async function fetchRSS(feedUrl: string, sourceName: string): Promise<Article[]>
                   || item.match(/<guid[^>]*>([\s\S]*?)<\/guid>/);
     const dateM    = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
     const descM    = item.match(/<description>([\s\S]*?)<\/description>/);
+    const imgM     = item.match(/<media:content[^>]+url="([^"]+)"/i)
+                  || item.match(/<enclosure[^>]+url="([^"]+)"/i)
+                  || item.match(/<media:thumbnail[^>]+url="([^"]+)"/i);
     const title    = titleM  ? stripCDATA(titleM[1])  : '';
     const url      = linkM   ? stripCDATA(linkM[1]).trim() : '';
     if (!title || !url) return [];
     const publishedAt = dateM ? parsePubDate(stripCDATA(dateM[1])) : new Date().toISOString();
     const description = descM ? stripHTML(stripCDATA(descM[1])).slice(0, 200) : '';
-    return [{ title, description, url, urlToImage: null, publishedAt, source: { name: sourceName }, isLive: checkIsLive(publishedAt) }];
+    const urlToImage  = imgM ? imgM[1] : null;
+    return [{ title, description, url, urlToImage, publishedAt, source: { name: sourceName }, isLive: checkIsLive(publishedAt) }];
   });
 }
 
