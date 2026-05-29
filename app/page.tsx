@@ -6,6 +6,7 @@ import StockPills from '@/components/StockPills';
 import NewsletterSignup from '@/components/NewsletterSignup';
 import Header from '@/components/Header';
 import MarketBuzz from '@/components/MarketBuzz';
+import MarketChatter from '@/components/MarketChatter';
 
 interface Article {
   title: string;
@@ -15,6 +16,7 @@ interface Article {
   publishedAt: string;
   source: { name: string };
   author: string;
+  isLive?: boolean;
 }
 
 interface SectorItem {
@@ -333,8 +335,11 @@ export default function Home() {
                   </div>
                 )}
                 <div className="flex flex-col justify-center p-8 flex-1">
-                  <span className={`self-start mb-3 text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
-                    {hero.source?.name || 'Unknown'}
+                  <span className="self-start mb-3 flex items-center gap-1">
+                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
+                      {hero.source?.name || 'Unknown'}
+                    </span>
+                    {hero.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
                   </span>
                   <h1 className="text-2xl font-bold text-gray-900 leading-snug mb-3 group-hover:text-blue-700 transition-colors">
                     {hero.title}
@@ -372,8 +377,11 @@ export default function Home() {
                       </div>
                     )}
                     <div className="p-4 flex flex-col flex-1">
-                      <span className="text-xs font-semibold text-red-600 uppercase tracking-wide mb-2">
-                        {article.source?.name || 'Unknown'}
+                      <span className="flex items-center gap-1 mb-2">
+                        <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">
+                          {article.source?.name || 'Unknown'}
+                        </span>
+                        {article.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
                       </span>
                       <h2 className="font-semibold text-gray-900 text-base leading-snug group-hover:text-blue-700 transition-colors line-clamp-3">
                         {article.title}
@@ -400,6 +408,7 @@ export default function Home() {
                         <span className={`flex-shrink-0 text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(article.source?.name)}`}>
                           {article.source?.name || 'Unknown'}
                         </span>
+                        {article.isLive && <span className="flex-shrink-0 text-xs font-bold text-green-600">🟢 LIVE</span>}
                         <span className="font-medium text-gray-900 text-sm line-clamp-1 group-hover:text-blue-700 transition-colors">
                           {article.title}
                         </span>
@@ -570,6 +579,18 @@ export default function Home() {
         </section>
 
       </div>
+
+      <section className="max-w-7xl mx-auto px-4 py-10 border-t border-gray-100">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
+            💬 Market Chatter
+          </h2>
+          <a href="https://stocktwits.com" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-black">
+            Powered by Stocktwits →
+          </a>
+        </div>
+        <MarketChatter />
+      </section>
 
       <div className="max-w-6xl mx-auto px-4 pb-12">
         <NewsletterSignup />

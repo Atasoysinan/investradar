@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const NEWSAPI_KEY = process.env.NEWSAPI_KEY;
+const GNEWS_KEY   = process.env.GNEWS_KEY;
+
 const TRUSTED_DOMAINS = 'reuters.com,apnews.com,wsj.com,ft.com,cnbc.com,bloomberg.com,forbes.com,marketwatch.com,businessinsider.com,economist.com,bbc.co.uk,bbc.com,theguardian.com,nytimes.com,washingtonpost.com,politico.com,axios.com,thehill.com,investing.com,seekingalpha.com,benzinga.com,oilprice.com,techcrunch.com,arstechnica.com,wired.com,cnet.com,theverge.com';
 
 const CATEGORY_QUERIES: Record<string, string> = {
-  business: 'business finance economy markets',
+  business:   'business finance economy markets',
   technology: 'technology',
-  general: 'politics news world',
-  science: 'science',
-  health: 'health medicine',
+  general:    'politics news world',
+  science:    'science',
+  health:     'health medicine',
+};
+
+const GNEWS_CATEGORIES: Record<string, string> = {
+  business:   'business',
+  technology: 'technology',
+  general:    'politics',
+  science:    'science',
+  health:     'health',
 };
 
 const REGION_QUERIES: Record<string, string> = {
@@ -19,31 +30,142 @@ const REGION_QUERIES: Record<string, string> = {
   au: 'Australia business economy finance',
 };
 
+const RSS_FEEDS = [
+  { url: 'https://feeds.reuters.com/reuters/businessNews',               name: 'Reuters' },
+  { url: 'https://feeds.apnews.com/rss/apf-finance',                    name: 'AP' },
+  { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html',       name: 'CNBC' },
+];
+
+interface Article {
+  title: string;
+  description: string;
+  url: string;
+  urlToImage: string | null;
+  publishedAt: string;
+  source: { name: string };
+  isLive: boolean;
+}
+
+function checkIsLive(publishedAt: string): boolean {
+  return (Date.now() - new Date(publishedAt).getTime()) < 60 * 60 * 1000;
+}
+
+function stripCDATA(s: string): string {
+  return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim();
+}
+
+function stripHTML(s: string): string {
+  return s.replace(/<[^>]*>/g, '').trim();
+}
+
+function parsePubDate(s: string): string {
+  try {
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+  } catch { return new Date().toISOString(); }
+}
+
+async function fetchRSS(feedUrl: string, sourceName: string): Promise<Article[]> {
+  const res = await fetch(feedUrl, {
+    headers: { 'User-Agent': 'InvestRadar/1.0' },
+    next: { revalidate: 300 },
+  });
+  if (!res.ok) return [];
+  const text = await res.text();
+  const items = text.match(/<item>([\s\S]*?)<\/item>/g) || [];
+  return items.slice(0, 10).flatMap((item): Article[] => {
+    const titleM   = item.match(/<title>([\s\S]*?)<\/title>/);
+    const linkM    = item.match(/<link>([\s\S]*?)<\/link>/)
+                  || item.match(/<guid[^>]*>([\s\S]*?)<\/guid>/);
+    const dateM    = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+    const descM    = item.match(/<description>([\s\S]*?)<\/description>/);
+    const title    = titleM  ? stripCDATA(titleM[1])  : '';
+    const url      = linkM   ? stripCDATA(linkM[1]).trim() : '';
+    if (!title || !url) return [];
+    const publishedAt = dateM ? parsePubDate(stripCDATA(dateM[1])) : new Date().toISOString();
+    const description = descM ? stripHTML(stripCDATA(descM[1])).slice(0, 200) : '';
+    return [{ title, description, url, urlToImage: null, publishedAt, source: { name: sourceName }, isLive: checkIsLive(publishedAt) }];
+  });
+}
+
+function sharesWords(t1: string, t2: string): boolean {
+  const words = t1.toLowerCase().split(/\s+/);
+  const target = t2.toLowerCase();
+  for (let i = 0; i <= words.length - 6; i++) {
+    if (target.includes(words.slice(i, i + 6).join(' '))) return true;
+  }
+  return false;
+}
+
+function deduplicate(articles: Article[]): Article[] {
+  const out: Article[] = [];
+  for (const a of articles) {
+    if (!out.some(r => sharesWords(r.title, a.title) || sharesWords(a.title, r.title))) {
+      out.push(a);
+    }
+  }
+  return out;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const category = searchParams.get('category') || 'business';
-  const country = searchParams.get('country') || 'us';
-  const q = searchParams.get('q') || '';
+  const country  = searchParams.get('country')  || 'us';
+  const q        = searchParams.get('q')         || '';
 
-  const apiKey = process.env.NEWSAPI_KEY;
-  const domains = `&domains=${TRUSTED_DOMAINS}`;
-
-  let query: string;
+  // NewsAPI query
+  let newsApiQuery: string;
   if (q) {
-    query = q;
+    newsApiQuery = q;
   } else if (country !== 'us' && REGION_QUERIES[country]) {
-    query = REGION_QUERIES[country];
+    newsApiQuery = REGION_QUERIES[country];
   } else {
-    query = CATEGORY_QUERIES[category] || 'business finance';
+    newsApiQuery = CATEGORY_QUERIES[category] || 'business finance';
   }
 
-  const url = `https://newsapi.org/v2/everything?q=${encodeURIComponent(query)}&language=en&sortBy=publishedAt&pageSize=30${domains}&apiKey=${apiKey}`;
+  // GNews params
+  const gNewsCategory = GNEWS_CATEGORIES[category] || 'general';
+  const gNewsCountry  = country === 'gb' ? 'gb' : 'us';
+  const gNewsQS = q
+    ? `q=${encodeURIComponent(q)}&lang=en&country=${gNewsCountry}&max=10&sortby=publishedAt&token=${GNEWS_KEY}`
+    : `category=${gNewsCategory}&lang=en&country=${gNewsCountry}&max=10&sortby=publishedAt&token=${GNEWS_KEY}`;
 
-  try {
-    const res = await fetch(url, { next: { revalidate: 300 } });
-    const data = await res.json();
-    return NextResponse.json(data);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to fetch news' }, { status: 500 });
+  const [newsApiResult, gNewsResult, ...rssResults] = await Promise.allSettled([
+    // NewsAPI
+    fetch(
+      `https://newsapi.org/v2/everything?q=${encodeURIComponent(newsApiQuery)}&language=en&sortBy=publishedAt&pageSize=20&domains=${TRUSTED_DOMAINS}&apiKey=${NEWSAPI_KEY}`,
+      { next: { revalidate: 300 } }
+    ).then(r => r.json()),
+    // GNews (skip if no key)
+    GNEWS_KEY
+      ? fetch(`https://gnews.io/api/v4/top-headlines?${gNewsQS}`, { next: { revalidate: 300 } }).then(r => r.json())
+      : Promise.reject('No GNews key'),
+    // RSS feeds
+    ...RSS_FEEDS.map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[])),
+  ]);
+
+  const pool: Article[] = [];
+
+  if (newsApiResult.status === 'fulfilled') {
+    for (const a of newsApiResult.value.articles || []) {
+      if (a.title === '[Removed]' || !a.title) continue;
+      pool.push({ title: a.title, description: a.description || '', url: a.url, urlToImage: a.urlToImage || null, publishedAt: a.publishedAt, source: { name: a.source?.name || 'Unknown' }, isLive: checkIsLive(a.publishedAt) });
+    }
   }
+
+  if (gNewsResult.status === 'fulfilled') {
+    for (const a of gNewsResult.value.articles || []) {
+      if (!a.title) continue;
+      pool.push({ title: a.title, description: a.description || '', url: a.url, urlToImage: a.image || null, publishedAt: a.publishedAt, source: { name: a.source?.name || 'GNews' }, isLive: checkIsLive(a.publishedAt) });
+    }
+  }
+
+  for (const r of rssResults) {
+    if (r.status === 'fulfilled') pool.push(...(r.value as Article[]));
+  }
+
+  pool.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+  const articles = deduplicate(pool).slice(0, 30);
+
+  return NextResponse.json({ status: 'ok', articles });
 }
