@@ -17,6 +17,26 @@ interface Article {
   author: string;
 }
 
+interface SectorItem {
+  ticker: string;
+  sectorName: string;
+  price: number;
+  change: number;
+  changePercent: number;
+}
+
+interface GlobalNews {
+  americas: Article[];
+  europe: Article[];
+  asia: Article[];
+}
+
+interface TopicNews {
+  markets: Article[];
+  tech: Article[];
+  geopolitics: Article[];
+}
+
 const CATEGORIES = [
   { label: 'Business', value: 'business' },
   { label: 'Technology', value: 'technology' },
@@ -60,6 +80,12 @@ function sourceLabelClass(name: string = '') {
   return 'bg-gray-700 text-white';
 }
 
+const SectionHeader = ({ children }: { children: React.ReactNode }) => (
+  <div className="border-b border-gray-200 pb-3 mb-6">
+    <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest">{children}</h2>
+  </div>
+);
+
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +95,13 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMode, setActiveMode] = useState<'category' | 'topic'>('category');
   const [activeTopic, setActiveTopic] = useState('');
+
+  const [sectorData, setSectorData] = useState<SectorItem[]>([]);
+  const [sectorLoading, setSectorLoading] = useState(true);
+  const [globalNews, setGlobalNews] = useState<GlobalNews | null>(null);
+  const [globalNewsLoading, setGlobalNewsLoading] = useState(true);
+  const [topicNews, setTopicNews] = useState<TopicNews | null>(null);
+  const [topicNewsLoading, setTopicNewsLoading] = useState(true);
 
   const fetchNews = useCallback(async () => {
     setLoading(true);
@@ -94,6 +127,23 @@ export default function Home() {
   }, [category, country, searchQuery, activeMode, activeTopic]);
 
   useEffect(() => { fetchNews(); }, [fetchNews]);
+
+  useEffect(() => {
+    Promise.allSettled([
+      fetch('/api/sectors').then(r => r.json()),
+      fetch('/api/global-news').then(r => r.json()),
+      fetch('/api/topic-news').then(r => r.json()),
+    ]).then(([sResult, gResult, tResult]) => {
+      if (sResult.status === 'fulfilled' && Array.isArray(sResult.value)) {
+        setSectorData(sResult.value as SectorItem[]);
+      }
+      if (gResult.status === 'fulfilled') setGlobalNews(gResult.value as GlobalNews);
+      if (tResult.status === 'fulfilled') setTopicNews(tResult.value as TopicNews);
+      setSectorLoading(false);
+      setGlobalNewsLoading(false);
+      setTopicNewsLoading(false);
+    });
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -375,6 +425,150 @@ export default function Home() {
           <MarketBuzz />
         </div>
         </div>{/* end flex row */}
+      </div>
+
+      {/* ── Below-the-fold enrichment sections ── */}
+      <div className="max-w-6xl mx-auto px-4 pb-16 space-y-14 mt-6 border-t border-gray-200 pt-10">
+
+        {/* Sector Performance */}
+        <section>
+          <SectionHeader>📊 Sector Performance</SectionHeader>
+          {sectorLoading ? (
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {[...Array(10)].map((_, i) => (
+                <div key={i} className="min-w-[120px] flex-shrink-0 bg-white border border-gray-200 rounded p-3 animate-pulse">
+                  <div className="h-2 bg-gray-100 rounded mb-2 w-3/4" />
+                  <div className="h-2 bg-gray-50 rounded mb-3 w-1/2" />
+                  <div className="h-5 bg-gray-100 rounded w-full" />
+                </div>
+              ))}
+            </div>
+          ) : sectorData.length > 0 ? (
+            <div className="flex overflow-x-auto gap-3 pb-2">
+              {sectorData.map(s => (
+                <div
+                  key={s.ticker}
+                  className={`min-w-[120px] flex-shrink-0 bg-white border border-gray-200 rounded p-3 text-center ${
+                    s.changePercent >= 0 ? 'border-l-2 border-l-black' : 'border-l-2 border-l-gray-300'
+                  }`}
+                >
+                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-tight mb-0.5">{s.sectorName}</p>
+                  <p className="text-xs text-gray-400 mb-2">{s.ticker}</p>
+                  <p className={`text-lg font-bold leading-none ${s.changePercent >= 0 ? 'text-black' : 'text-gray-400'}`}>
+                    {s.changePercent >= 0 ? '▲' : '▼'}&nbsp;{Math.abs(s.changePercent).toFixed(2)}%
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
+        {/* Global Economy */}
+        <section>
+          <SectionHeader>🌍 Global Economy</SectionHeader>
+          {globalNewsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="space-y-4">
+                  {[...Array(3)].map((_, j) => (
+                    <div key={j} className="animate-pulse">
+                      <div className="h-28 bg-gray-100 rounded mb-2" />
+                      <div className="h-3 bg-gray-100 rounded w-1/3 mb-1" />
+                      <div className="h-4 bg-gray-100 rounded w-full mb-1" />
+                      <div className="h-4 bg-gray-100 rounded w-3/4" />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : globalNews ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {([
+                { label: '🌎 Americas', articles: globalNews.americas },
+                { label: '🇪🇺 Europe',   articles: globalNews.europe },
+                { label: '🌏 Asia Pacific', articles: globalNews.asia },
+              ] as { label: string; articles: Article[] }[]).map(col => (
+                <div key={col.label}>
+                  <p className="text-xs uppercase tracking-widest font-bold text-gray-500 border-b border-gray-200 pb-2 mb-3">
+                    {col.label}
+                  </p>
+                  <div className="space-y-5">
+                    {col.articles.map((a, i) => (
+                      <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="block group">
+                        {a.urlToImage ? (
+                          <div className="h-28 bg-gray-100 rounded overflow-hidden mb-2">
+                            <img
+                              src={a.urlToImage}
+                              alt=""
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="h-28 bg-gray-100 rounded mb-2" />
+                        )}
+                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>
+                        <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{a.title}</p>
+                        <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
+        {/* Today's Briefing */}
+        <section>
+          <SectionHeader>📰 Today&apos;s Briefing</SectionHeader>
+          {topicNewsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="space-y-0">
+                  <div className="h-5 bg-gray-100 rounded w-1/2 mb-4 animate-pulse" />
+                  {[...Array(4)].map((_, j) => (
+                    <div key={j} className="border-b border-gray-100 py-3 animate-pulse">
+                      <div className="h-2.5 bg-gray-100 rounded w-1/4 mb-2" />
+                      <div className="h-3.5 bg-gray-100 rounded w-full mb-1" />
+                      <div className="h-3.5 bg-gray-100 rounded w-3/4" />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : topicNews ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              {([
+                { label: 'Markets & Finance',     articles: topicNews.markets },
+                { label: 'Technology & AI',        articles: topicNews.tech },
+                { label: 'Geopolitics & Economy',  articles: topicNews.geopolitics },
+              ] as { label: string; articles: Article[] }[]).map(col => (
+                <div key={col.label}>
+                  <p className="text-sm font-bold text-black uppercase tracking-wide border-b-2 border-black pb-2 mb-4">
+                    {col.label}
+                  </p>
+                  <div>
+                    {col.articles.map((a, i) => (
+                      <a
+                        key={i}
+                        href={a.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block border-b border-gray-100 py-3 hover:bg-gray-50 px-1 -mx-1 transition-colors group"
+                      >
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{a.source?.name}</p>
+                        <p className="text-sm text-gray-800 group-hover:text-black leading-snug font-medium">{a.title}</p>
+                        <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
       </div>
 
       <div className="max-w-6xl mx-auto px-4 pb-12">
