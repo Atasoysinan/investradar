@@ -1,25 +1,27 @@
 import Link from 'next/link';
 
 const VIDEOS = [
-  { id: 'h4RkFcBFchE', title: 'Fed Rate Decision Explained',        channel: 'Bloomberg',         tag: 'Macro' },
-  { id: '9sWQoRbcDzQ', title: 'S&P 500 Outlook 2025',               channel: 'CNBC',              tag: 'Markets' },
-  { id: 'mF2bH8aAIXQ', title: 'How Hedge Funds Actually Work',      channel: 'Patrick Boyle',     tag: 'Investing' },
-  { id: 'oN5QplFkHCM', title: 'The Truth About Index Funds',        channel: 'Graham Stephan',    tag: 'Investing' },
-  { id: 'IgVBZPGBo8A', title: 'How to Invest in Your 20s',          channel: 'Andrei Jikh',       tag: 'Investing' },
-  { id: 'vPgm7U2N2UA', title: 'Global Macro Outlook',               channel: 'Real Vision',       tag: 'Macro' },
-  { id: '86OEKarFGs8', title: 'Stock Market Basics',                 channel: 'Investopedia',      tag: 'Education' },
-  { id: 'PHe0bXAIuk0', title: 'ETF Investing Explained',            channel: 'The Plain Bagel',   tag: 'Investing' },
-  { id: '4l4GHoHFHKM', title: 'How to Read Financial Statements',   channel: 'Ticker Symbol: YOU',tag: 'Education' },
-  { id: 'lMqgOOkCRq0', title: 'Macro Economics 2025',               channel: 'Lyn Alden',         tag: 'Macro' },
-  { id: 'oi6M5KBWydg', title: 'How to Value a Company',             channel: 'Aswath Damodaran',  tag: 'Investing' },
-  { id: 'AZKxq9lnIgs', title: 'Why Most Stock Pickers Fail',        channel: 'Ben Felix',         tag: 'Investing' },
+  { id: 'p7HKvqRI_Bo', title: 'How The Economic Machine Works',        channel: 'Ray Dalio',          tag: 'Macro' },
+  { id: 'ZCFkWDdmXG8', title: 'How to Invest for Beginners',           channel: 'Graham Stephan',     tag: 'Investing' },
+  { id: 'Rm9JGFMqKFc', title: 'Warren Buffett: How Most People Should Invest', channel: 'CNBC',       tag: 'Investing' },
+  { id: 'Kl7QFR0NMDE', title: 'Index Funds vs ETFs vs Mutual Funds',   channel: 'Andrei Jikh',        tag: 'ETFs' },
+  { id: 'lNdOtlpmH5U', title: 'Stock Market Explained Simply',         channel: 'Investopedia',       tag: 'Markets' },
+  { id: '3ez10ADR_gM', title: 'How to Read a Balance Sheet',           channel: 'Accounting Stuff',   tag: 'Fundamentals' },
+  { id: 'dbU2Vf3PZCA', title: 'What is Inflation?',                    channel: 'Economics Explained',tag: 'Macro' },
+  { id: 'OOejFn6JMMM', title: 'How the Fed Controls Interest Rates',   channel: 'The Plain Bagel',    tag: 'Macro' },
+  { id: 'yIiyHHzBqts', title: 'How Hedge Funds Make Money',            channel: 'Patrick Boyle',      tag: 'Markets' },
+  { id: 'Nu4lHaSh7D4', title: 'Crypto Explained: Bitcoin vs Ethereum', channel: 'Whiteboard Crypto',  tag: 'Crypto' },
+  { id: 'Xn7KWR9EOGQ', title: 'How to Value a Stock',                  channel: 'The Swedish Investor',tag: 'Investing' },
+  { id: 'PHe0bXAIuk0', title: 'ETF Investing Explained',               channel: 'The Plain Bagel',    tag: 'ETFs' },
 ];
 
 const TAG_COLORS: Record<string, string> = {
-  Macro:     'bg-purple-100 text-purple-700',
-  Markets:   'bg-blue-100 text-blue-700',
-  Investing: 'bg-green-100 text-green-700',
-  Education: 'bg-orange-100 text-orange-700',
+  Macro:        'bg-purple-100 text-purple-700',
+  Markets:      'bg-blue-100 text-blue-700',
+  Investing:    'bg-green-100 text-green-700',
+  ETFs:         'bg-cyan-100 text-cyan-700',
+  Fundamentals: 'bg-yellow-100 text-yellow-700',
+  Crypto:       'bg-orange-100 text-orange-700',
 };
 
 export default function VideosPage() {
