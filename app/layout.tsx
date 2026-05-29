@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import TickerBar from '@/components/TickerBar';
+import BreakingNewsBanner from '@/components/BreakingNewsBanner';
 import Providers from './providers';
 import './globals.css';
 
@@ -17,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={inter.className}>
         <Providers>
           <TickerBar />
+          <BreakingNewsBanner />
           {children}
         </Providers>
       </body>
