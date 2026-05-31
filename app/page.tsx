@@ -28,7 +28,9 @@ interface SectorItem {
 }
 
 interface GlobalNews {
-  articles: Article[];
+    americas: Article[];
+    europe: Article[];
+    asia: Article[];
 }
 
 interface TopicNews {
@@ -519,26 +521,39 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          ) : globalNews && globalNews.articles.length > 0 ? (
+          ) : globalNews ? (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {globalNews.articles.map((a, i) => (
-                                    <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="block group">
-                                      {a.urlToImage ? (
-                                                          <div className="h-28 bg-gray-100 rounded overflow-hidden mb-2">
-                                                                                <img
-                                                                                                          src={a.urlToImage}
-                                                                                                          alt=""
-                                                                                                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                                                                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                                                                                                        />
-                                                          </div>
-                                                        ) : (
-                                                          <div className="h-28 bg-gray-100 rounded mb-2" />
-                                                        )}
-                                                      <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>p>
-                                                      <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>p>
-                                                      <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
-                                    </a>
+                    {([
+                    { label: '🌎 Americas', articles: globalNews.americas },
+                    { label: '🇪🇺 Europe',    articles: globalNews.europe },
+                    { label: '🌏 Asia Pacific', articles: globalNews.asia },
+                                  ] as { label: string; articles: Article[] }[]).map(col => (
+                                    <div key={col.label}>
+                                                      <p className="text-xs uppercase tracking-widest font-bold text-gray-500 border-b border-gray-200 pb-2 mb-3">
+                                                        {col.label}
+                                                      </p>
+                                                      <div className="space-y-5">
+                                                        {col.articles.map((a, i) => (
+                                                            <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="block group">
+                                                              {a.urlToImage ? (
+                                                                                        <div className="h-28 bg-gray-100 rounded overflow-hidden mb-2">
+                                                                                                                    <img
+                                                                                                                                                    src={a.urlToImage}
+                                                                                                                                                    alt=""
+                                                                                                                                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                                                                                                                                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                                                                                                                                  />
+                                                                                          </div>
+                                                                                      ) : (
+                                                                                        <div className="h-28 bg-gray-100 rounded mb-2" />
+                                                                                      )}
+                                                                                    <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>p>
+                                                                                    <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>p>
+                                                                                    <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>p>
+                                                            </a>
+                                                          ))}
+                                                      </div>
+                                    </div>
                                   ))}
                   </div>
                 ) : null
