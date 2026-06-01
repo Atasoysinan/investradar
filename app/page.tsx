@@ -472,31 +472,43 @@ export default function Home() {
 
         {/* Sector Performance */}
         <section>
-          <SectionHeader>ð Sector Performance</SectionHeader>
+          <SectionHeader>📊 Sector Performance</SectionHeader>
           {sectorLoading ? (
-            <div className="flex gap-3 overflow-x-auto pb-2">
+            <div className="flex gap-4 overflow-x-auto pb-3">
               {[...Array(10)].map((_, i) => (
-                <div key={i} className="min-w-[120px] flex-shrink-0 bg-white border border-gray-200 rounded p-3 animate-pulse">
-                  <div className="h-2 bg-gray-100 rounded mb-2 w-3/4" />
+                <div key={i} className="min-w-[160px] flex-shrink-0 bg-white border border-gray-200 rounded-lg p-4 animate-pulse">
+                  <div className="h-3 bg-gray-100 rounded mb-2 w-3/4" />
                   <div className="h-2 bg-gray-50 rounded mb-3 w-1/2" />
-                  <div className="h-5 bg-gray-100 rounded w-full" />
+                  <div className="h-5 bg-gray-100 rounded w-2/3" />
                 </div>
               ))}
             </div>
           ) : sectorData.length > 0 ? (
-            <div className="flex overflow-x-auto gap-3 pb-2">
+            <div className="flex overflow-x-auto gap-4 pb-3">
               {sectorData.map(s => (
                 <div
                   key={s.ticker}
-                  className={`min-w-[120px] flex-shrink-0 bg-white border border-gray-200 rounded p-3 text-center ${
-                    s.changePercent >= 0 ? 'border-l-2 border-l-black' : 'border-l-2 border-l-gray-300'
+                  className={`min-w-[160px] flex-shrink-0 bg-white rounded-lg p-4 border ${
+                    s.changePercent >= 0
+                      ? 'border-green-200 border-l-4 border-l-green-500 bg-green-50'
+                      : 'border-red-200 border-l-4 border-l-red-400 bg-red-50'
                   }`}
                 >
-                  <p className="text-xs text-gray-500 uppercase tracking-wide leading-tight mb-0.5">{s.sectorName}</p>
-                  <p className="text-xs text-gray-400 mb-2">{s.ticker}</p>
-                  <p className={`text-lg font-bold leading-none ${s.changePercent >= 0 ? 'text-black' : 'text-gray-400'}`}>
-                    {s.changePercent >= 0 ? 'â²' : 'â¼'}&nbsp;{Math.abs(s.changePercent).toFixed(2)}%
-                  </p>
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <p className="text-xs font-bold text-gray-800 uppercase tracking-wide leading-tight">{s.sectorName}</p>
+                      <p className="text-xs text-gray-400 font-mono mt-0.5">{s.ticker}</p>
+                    </div>
+                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
+                      s.changePercent >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
+                    }`}>{s.changePercent >= 0 ? '▲' : '▼'}</span>
+                  </div>
+                  <div className="flex items-end justify-between">
+                    <p className="text-sm font-semibold text-gray-700">${s.price.toFixed(2)}</p>
+                    <p className={`text-base font-bold ${s.changePercent >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                      {Math.abs(s.changePercent).toFixed(2)}%
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
