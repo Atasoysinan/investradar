@@ -547,9 +547,9 @@ export default function Home() {
                                                                                       ) : (
                                                                                         <div className="h-28 bg-gray-100 rounded mb-2" />
                                                                                       )}
-                                                                                    <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>p>
-                                                                                    <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>p>
-                                                                                    <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>p>
+                                                                                    <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>
+                                                                                    <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>
+                                                                                    <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
                                                             </a>
                                                           ))}
                                                       </div>
