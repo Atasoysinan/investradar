@@ -28,9 +28,9 @@ interface SectorItem {
 }
 
 interface GlobalNews {
-    americas: Article[];
-    europe: Article[];
-    asia: Article[];
+  americas: Article[];
+  europe: Article[];
+  asia: Article[];
 }
 
 interface TopicNews {
@@ -48,22 +48,22 @@ const CATEGORIES = [
 ];
 
 const REGIONS = [
-  { label: '🇺🇸 USA', value: 'us' },
-  { label: '🇬🇧 UK', value: 'gb' },
-  { label: '🇩🇪 Germany', value: 'de' },
-  { label: '🇫🇷 France', value: 'fr' },
-  { label: '🇯🇵 Japan', value: 'jp' },
-  { label: '🇨🇳 China', value: 'cn' },
-  { label: '🇦🇺 Australia', value: 'au' },
+  { label: 'ðºð¸ USA', value: 'us' },
+  { label: 'ð¬ð§ UK', value: 'gb' },
+  { label: 'ð©ðª Germany', value: 'de' },
+  { label: 'ð«ð· France', value: 'fr' },
+  { label: 'ð¯ðµ Japan', value: 'jp' },
+  { label: 'ð¨ð³ China', value: 'cn' },
+  { label: 'ð¦ðº Australia', value: 'au' },
 ];
 
 const TOPICS = [
-  { label: '📈 Markets', query: 'stock market investing' },
-  { label: '🏦 Fed / ECB', query: 'federal reserve interest rates central bank' },
-  { label: '⚡ Energy', query: 'oil energy commodities' },
-  { label: '💻 Tech', query: 'technology AI semiconductor' },
-  { label: '🌍 Geopolitics', query: 'war sanctions elections geopolitics' },
-  { label: '₿ Crypto', query: 'bitcoin cryptocurrency' },
+  { label: 'ð Markets', query: 'stock market investing' },
+  { label: 'ð¦ Fed / ECB', query: 'federal reserve interest rates central bank' },
+  { label: 'â¡ Energy', query: 'oil energy commodities' },
+  { label: 'ð» Tech', query: 'technology AI semiconductor' },
+  { label: 'ð Geopolitics', query: 'war sanctions elections geopolitics' },
+  { label: 'â¿ Crypto', query: 'bitcoin cryptocurrency' },
 ];
 
 function timeAgo(dateStr: string) {
@@ -300,21 +300,21 @@ export default function Home() {
           <p className="text-sm text-gray-500 font-medium">
             {loading ? 'Loading...' : error ? '' : `${articles.length} stories`}
             {activeMode === 'topic' && activeTopic && !loading && (
-              <span className="ml-2 text-blue-600">· Topic search</span>
+              <span className="ml-2 text-blue-600">Â· Topic search</span>
             )}
           </p>
           <button
             onClick={fetchNews}
             className="text-xs text-gray-600 border border-gray-300 bg-white hover:bg-gray-50 hover:border-gray-400 transition-colors px-3 py-1 rounded font-medium"
           >
-            ↻ Refresh
+            â» Refresh
           </button>
         </div>
 
         {/* Error */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700 text-sm">
-            ⚠️ {error}
+            â ï¸ {error}
           </div>
         )}
 
@@ -372,7 +372,7 @@ export default function Home() {
                     <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
                       {hero.source?.name || 'Unknown'}
                     </span>
-                    {hero.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
+                    {hero.isLive && <span className="text-xs font-bold text-green-600">ð¢ LIVE</span>}
                   </span>
                   <h1 className="text-2xl font-bold text-gray-900 leading-snug mb-3 group-hover:text-blue-700 transition-colors">
                     {decodeHtml(hero.title)}
@@ -412,7 +412,7 @@ export default function Home() {
                         <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">
                           {article.source?.name || 'Unknown'}
                         </span>
-                        {article.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
+                        {article.isLive && <span className="text-xs font-bold text-green-600">ð¢ LIVE</span>}
                       </span>
                       <h2 className="font-semibold text-gray-900 text-base leading-snug group-hover:text-blue-700 transition-colors line-clamp-3">
                         {decodeHtml(article.title)}
@@ -439,7 +439,7 @@ export default function Home() {
                         <span className={`flex-shrink-0 text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(article.source?.name)}`}>
                           {article.source?.name || 'Unknown'}
                         </span>
-                        {article.isLive && <span className="flex-shrink-0 text-xs font-bold text-green-600">🟢 LIVE</span>}
+                        {article.isLive && <span className="flex-shrink-0 text-xs font-bold text-green-600">ð¢ LIVE</span>}
                         <span className="font-medium text-gray-900 text-sm line-clamp-1 group-hover:text-blue-700 transition-colors">
                           {decodeHtml(article.title)}
                         </span>
@@ -467,12 +467,12 @@ export default function Home() {
         </div>{/* end flex row */}
       </div>
 
-      {/* ── Below-the-fold enrichment sections ── */}
+      {/* ââ Below-the-fold enrichment sections ââ */}
       <div className="max-w-6xl mx-auto px-4 pb-16 space-y-14 mt-6 border-t border-gray-200 pt-10">
 
         {/* Sector Performance */}
         <section>
-          <SectionHeader>📊 Sector Performance</SectionHeader>
+          <SectionHeader>ð Sector Performance</SectionHeader>
           {sectorLoading ? (
             <div className="flex gap-3 overflow-x-auto pb-2">
               {[...Array(10)].map((_, i) => (
@@ -495,7 +495,7 @@ export default function Home() {
                   <p className="text-xs text-gray-500 uppercase tracking-wide leading-tight mb-0.5">{s.sectorName}</p>
                   <p className="text-xs text-gray-400 mb-2">{s.ticker}</p>
                   <p className={`text-lg font-bold leading-none ${s.changePercent >= 0 ? 'text-black' : 'text-gray-400'}`}>
-                    {s.changePercent >= 0 ? '▲' : '▼'}&nbsp;{Math.abs(s.changePercent).toFixed(2)}%
+                    {s.changePercent >= 0 ? 'â²' : 'â¼'}&nbsp;{Math.abs(s.changePercent).toFixed(2)}%
                   </p>
                 </div>
               ))}
@@ -505,7 +505,7 @@ export default function Home() {
 
         {/* Global Economy */}
         <section>
-          <SectionHeader>🌍 Global Economy</SectionHeader>
+          <SectionHeader>ð Global Economy</SectionHeader>
           {globalNewsLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
@@ -556,11 +556,12 @@ export default function Home() {
                 </div>
               ))}
             </div>
-          ) : null
+          ) : null}
+        </section>
 
         {/* Today's Briefing */}
         <section>
-          <SectionHeader>📰 Today&apos;s Briefing</SectionHeader>
+          <SectionHeader>ð° Today&apos;s Briefing</SectionHeader>
           {topicNewsLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {[...Array(3)].map((_, i) => (
@@ -613,10 +614,10 @@ export default function Home() {
       <section className="max-w-7xl mx-auto px-4 py-10 border-t border-gray-100">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
-            💬 Market Chatter
+            ð¬ Market Chatter
           </h2>
           <a href="https://stocktwits.com" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-black">
-            Powered by Stocktwits →
+            Powered by Stocktwits â
           </a>
         </div>
         <MarketChatter />
@@ -627,7 +628,7 @@ export default function Home() {
       </div>
 
       <footer className="border-t border-gray-200 py-6 text-center text-xs text-gray-400">
-        © 2026 InvestRadar · Financial &amp; Geopolitical Intelligence
+        Â© 2026 InvestRadar Â· Financial &amp; Geopolitical Intelligence
       </footer>
     </div>
   );
