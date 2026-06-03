@@ -40,7 +40,13 @@ export async function GET() {
     if (result.status !== 'fulfilled') return [];
     return (result.value.articles || [])
       .filter(a => a.title !== '[Removed]')
-      .slice(0, 4);
+      .reduce((acc: typeof result.value.articles, a) => {
+      const src = a.source?.name || '';
+      if (!acc.find((x: typeof a) => x.source?.name === src) || acc.filter((x: typeof a) => x.source?.name === src).length < 1) {
+        acc.push(a);
+      }
+      return acc;
+    }, []).slice(0, 4);
   };
 
   return NextResponse.json({
