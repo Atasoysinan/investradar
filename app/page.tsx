@@ -48,22 +48,22 @@ const CATEGORIES = [
 ];
 
 const REGIONS = [
-  { label: 'ðºð¸ USA', value: 'us' },
-  { label: 'ð¬ð§ UK', value: 'gb' },
-  { label: 'ð©ðª Germany', value: 'de' },
-  { label: 'ð«ð· France', value: 'fr' },
-  { label: 'ð¯ðµ Japan', value: 'jp' },
-  { label: 'ð¨ð³ China', value: 'cn' },
-  { label: 'ð¦ðº Australia', value: 'au' },
+  { label: '🇺🇸 USA', value: 'us' },
+  { label: '🇬🇧 UK', value: 'gb' },
+  { label: '🇩🇪 Germany', value: 'de' },
+  { label: '🇫🇷 France', value: 'fr' },
+  { label: '🇯🇵 Japan', value: 'jp' },
+  { label: '🇨🇳 China', value: 'cn' },
+  { label: '🇦🇺 Australia', value: 'au' },
 ];
 
 const TOPICS = [
-  { label: 'ð Markets', query: 'stock market investing' },
-  { label: 'ð¦ Fed / ECB', query: 'federal reserve interest rates central bank' },
-  { label: 'â¡ Energy', query: 'oil energy commodities' },
-  { label: 'ð» Tech', query: 'technology AI semiconductor' },
-  { label: 'ð Geopolitics', query: 'war sanctions elections geopolitics' },
-  { label: 'â¿ Crypto', query: 'bitcoin cryptocurrency' },
+  { label: '📈 Markets', query: 'stock market investing' },
+  { label: '🏦 Fed / ECB', query: 'federal reserve interest rates central bank' },
+  { label: '⚡ Energy', query: 'oil energy commodities' },
+  { label: '💻 Tech', query: 'technology AI semiconductor' },
+  { label: '🌍 Geopolitics', query: 'war sanctions elections geopolitics' },
+  { label: '₿ Crypto', query: 'bitcoin cryptocurrency' },
 ];
 
 function timeAgo(dateStr: string) {
@@ -300,21 +300,21 @@ export default function Home() {
           <p className="text-sm text-gray-500 font-medium">
             {loading ? 'Loading...' : error ? '' : `${articles.length} stories`}
             {activeMode === 'topic' && activeTopic && !loading && (
-              <span className="ml-2 text-blue-600">Â· Topic search</span>
+              <span className="ml-2 text-blue-600">· Topic search</span>
             )}
           </p>
           <button
             onClick={fetchNews}
             className="text-xs text-gray-600 border border-gray-300 bg-white hover:bg-gray-50 hover:border-gray-400 transition-colors px-3 py-1 rounded font-medium"
           >
-            â» Refresh
+            ↻ Refresh
           </button>
         </div>
 
         {/* Error */}
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700 text-sm">
-            â ï¸ {error}
+            ⚠️ {error}
           </div>
         )}
 
@@ -372,7 +372,7 @@ export default function Home() {
                     <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
                       {hero.source?.name || 'Unknown'}
                     </span>
-                    {hero.isLive && <span className="text-xs font-bold text-green-600">ð¢ LIVE</span>}
+                    {hero.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
                   </span>
                   <h1 className="text-2xl font-bold text-gray-900 leading-snug mb-3 group-hover:text-blue-700 transition-colors">
                     {decodeHtml(hero.title)}
@@ -412,7 +412,7 @@ export default function Home() {
                         <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">
                           {article.source?.name || 'Unknown'}
                         </span>
-                        {article.isLive && <span className="text-xs font-bold text-green-600">ð¢ LIVE</span>}
+                        {article.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
                       </span>
                       <h2 className="font-semibold text-gray-900 text-base leading-snug group-hover:text-blue-700 transition-colors line-clamp-3">
                         {decodeHtml(article.title)}
@@ -439,7 +439,7 @@ export default function Home() {
                         <span className={`flex-shrink-0 text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(article.source?.name)}`}>
                           {article.source?.name || 'Unknown'}
                         </span>
-                        {article.isLive && <span className="flex-shrink-0 text-xs font-bold text-green-600">ð¢ LIVE</span>}
+                        {article.isLive && <span className="flex-shrink-0 text-xs font-bold text-green-600">🟢 LIVE</span>}
                         <span className="font-medium text-gray-900 text-sm line-clamp-1 group-hover:text-blue-700 transition-colors">
                           {decodeHtml(article.title)}
                         </span>
@@ -467,7 +467,7 @@ export default function Home() {
         </div>{/* end flex row */}
       </div>
 
-      {/* ââ Below-the-fold enrichment sections ââ */}
+      {/* ── Below-the-fold enrichment sections ── */}
       <div className="max-w-6xl mx-auto px-4 pb-16 space-y-14 mt-6 border-t border-gray-200 pt-10">
 
         {/* Sector Performance */}
@@ -517,7 +517,7 @@ export default function Home() {
 
         {/* Global Economy */}
         <section>
-          <SectionHeader>ð Global Economy</SectionHeader>
+          <SectionHeader>🌍 Global Economy</SectionHeader>
           {globalNewsLoading ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[...Array(3)].map((_, i) => (
@@ -536,9 +536,9 @@ export default function Home() {
           ) : globalNews ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {([
-                { label: 'ð Americas', articles: globalNews.americas },
-                { label: 'ðªðº Europe',   articles: globalNews.europe },
-                { label: 'ð Asia Pacific', articles: globalNews.asia },
+                { label: '🌎 Americas', articles: globalNews.americas },
+                { label: '🇪🇺 Europe',   articles: globalNews.europe },
+                { label: '🌏 Asia Pacific', articles: globalNews.asia },
               ] as { label: string; articles: Article[] }[]).map(col => (
                 <div key={col.label}>
                   <p className="text-xs uppercase tracking-widest font-bold text-gray-500 border-b border-gray-200 pb-2 mb-3">
@@ -571,65 +571,51 @@ export default function Home() {
           ) : null}
         </section>
 
-        {/* Today's Briefing */}
+        {/* Market Videos */}
         <section>
-          <SectionHeader>ð° Today&apos;s Briefing</SectionHeader>
-          {topicNewsLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-0">
-                  <div className="h-5 bg-gray-100 rounded w-1/2 mb-4 animate-pulse" />
-                  {[...Array(4)].map((_, j) => (
-                    <div key={j} className="border-b border-gray-100 py-3 animate-pulse">
-                      <div className="h-2.5 bg-gray-100 rounded w-1/4 mb-2" />
-                      <div className="h-3.5 bg-gray-100 rounded w-full mb-1" />
-                      <div className="h-3.5 bg-gray-100 rounded w-3/4" />
-                    </div>
-                  ))}
+          <SectionHeader>🎬 Market Videos</SectionHeader>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+            {[
+              { name: 'CNBC', url: 'https://www.youtube.com/@CNBC', color: '#CC0000', desc: 'Breaking business news' },
+              { name: 'Bloomberg', url: 'https://www.youtube.com/@Bloomberg', color: '#1464F4', desc: 'Global finance & markets' },
+              { name: 'Yahoo Finance', url: 'https://www.youtube.com/@YahooFinance', color: '#6001D2', desc: 'Market data & earnings' },
+              { name: 'The Economist', url: 'https://www.youtube.com/@TheEconomist', color: '#E3120B', desc: 'Global economic insight' },
+              { name: 'WSJ', url: 'https://www.youtube.com/@wsj', color: '#0274B6', desc: 'Business & financial news' },
+              { name: 'Investopedia', url: 'https://www.youtube.com/@Investopedia', color: '#1B5E20', desc: 'Investing education' },
+            ].map((ch) => (
+              <a
+                key={ch.name}
+                href={ch.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="group flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all duration-200 text-center"
+              >
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm"
+                  style={{ backgroundColor: ch.color }}
+                >
+                  {ch.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
                 </div>
-              ))}
-            </div>
-          ) : topicNews ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {([
-                { label: 'Markets & Finance',     articles: topicNews.markets },
-                { label: 'Technology & AI',        articles: topicNews.tech },
-                { label: 'Geopolitics & Economy',  articles: topicNews.geopolitics },
-              ] as { label: string; articles: Article[] }[]).map(col => (
-                <div key={col.label}>
-                  <p className="text-sm font-bold text-black uppercase tracking-wide border-b-2 border-black pb-2 mb-4">
-                    {col.label}
-                  </p>
-                  <div>
-                    {col.articles.map((a, i) => (
-                      <a
-                        key={i}
-                        href={a.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block border-b border-gray-100 py-3 hover:bg-gray-50 px-1 -mx-1 transition-colors group"
-                      >
-                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">{a.source?.name}</p>
-                        <p className="text-sm text-gray-800 group-hover:text-black leading-snug font-medium">{decodeHtml(a.title)}</p>
-                        <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
+                <span className="text-xs font-semibold text-gray-800 leading-tight">{ch.name}</span>
+                <span className="text-xs text-gray-400 leading-tight hidden md:block">{ch.desc}</span>
+              </a>
+            ))}
+          </div>
         </section>
 
       </div>
 
       <section className="max-w-7xl mx-auto px-4 py-10 border-t border-gray-100">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">
-            ð¬ Market Chatter
-          </h2>
-          <a href="https://stocktwits.com" target="_blank" rel="noopener noreferrer" className="text-xs text-gray-400 hover:text-black">
-            Powered by Stocktwits â
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
+              💬 Social Pulse
+            </h2>
+            <p className="text-xs text-gray-400">Real-time market sentiment from Stocktwits</p>
+          </div>
+          <a href="https://stocktwits.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-black border border-gray-200 rounded-full px-3 py-1.5 hover:border-gray-400 transition-colors">
+            <span>View on Stocktwits</span>
+            <span>→</span>
           </a>
         </div>
         <MarketChatter />
@@ -640,7 +626,7 @@ export default function Home() {
       </div>
 
       <footer className="border-t border-gray-200 py-6 text-center text-xs text-gray-400">
-        Â© 2026 InvestRadar Â· Financial &amp; Geopolitical Intelligence
+        © 2026 InvestRadar · Financial &amp; Geopolitical Intelligence
       </footer>
     </div>
   );
