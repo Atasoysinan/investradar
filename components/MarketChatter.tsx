@@ -76,7 +76,7 @@ export default function MarketChatter() {
           </div>
           <div className="space-y-2">
             {ticker.messages.map((msg, i) => (
-              <div key={i} className="bg-white border border-gray-100 rounded p-3 hover:border-gray-300 transition-colors">
+              <div key={i} className="bg-white border border-gray-100 rounded p-3 hover:border-gray-300 transition-colors overflow-hidden">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-semibold text-gray-700">@{msg.user.username}</span>
                   {msg.sentiment === 'Bullish' && (
@@ -87,7 +87,7 @@ export default function MarketChatter() {
                   )}
                   <span className="text-xs text-gray-400 ml-auto">{timeAgo(msg.created_at)}</span>
                 </div>
-                <p className="text-sm text-gray-800 leading-relaxed">{msg.body}</p>
+                <p className="text-sm text-gray-800 leading-relaxed break-words">{msg.body}</p>
               </div>
             ))}
           </div>
