@@ -36,17 +36,22 @@ export async function GET() {
     ).then(r => r.json() as Promise<NewsApiResponse>),
   ]);
 
+  const seen = new Set<string>();
+  function getUnique(articles: NewsArticle[]): NewsArticle[] {
+    const result: NewsArticle[] = [];
+    for (const a of articles) {
+      const src = a.source?.name ?? '';
+      if (!seen.has(src)) { seen.add(src); result.push(a); }
+      if (result.length >= 4) break;
+    }
+    return result;
+  }
+
   const extract = (result: PromiseSettledResult<NewsApiResponse>): NewsArticle[] => {
     if (result.status !== 'fulfilled') return [];
-    return (result.value.articles || [])
-      .filter(a => a.title !== '[Removed]')
-      .reduce((acc: typeof result.value.articles, a) => {
-      const src = a.source?.name || '';
-      if (!acc.find((x: typeof a) => x.source?.name === src) || acc.filter((x: typeof a) => x.source?.name === src).length < 1) {
-        acc.push(a);
-      }
-      return acc;
-    }, []).slice(0, 4);
+    return getUnique(
+      (result.value.articles ?? []).filter(a => a.title !== '[Removed]')
+    );
   };
 
   return NextResponse.json({
