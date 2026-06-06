@@ -49,6 +49,9 @@ export const metadata: Metadata = {
     alternates: {
           canonical: 'https://www.investradar.live',
     },
+      verification: {
+              google: 'rVYItmxVGHYcatZ5gfrr_YwBF3i834DKuN2Okw9_ky4',
+      },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
