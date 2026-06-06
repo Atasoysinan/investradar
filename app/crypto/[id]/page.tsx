@@ -1,3 +1,45 @@
+import type { Metadata } from 'next';
+
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+    const { id } = await params;
+    const coinRes = await fetch(
+          `https://api.coingecko.com/api/v3/coins/${id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`,
+      { headers: { Accept: 'application/json' }, next: { revalidate: 60 } }
+        )
+          .then((r) => r.json())
+          .catch(() => null);
+  
+    const coinName: string = coinRes?.name || id.charAt(0).toUpperCase() + id.slice(1);
+    const coinSymbol: string = coinRes?.symbol?.toUpperCase() || '';
+    const coinImage: string = coinRes?.image?.large || '/og-default.png';
+    const price: number = coinRes?.market_data?.current_price?.usd || 0;
+  
+    const title = `${coinName} (${coinSymbol}) Price, News & Market Cap`;
+    const description = `Live ${coinName} price $${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, market cap, and latest news. Track ${coinName} with real-time data on InvestRadar.`;
+  
+    return {
+          title,
+          description,
+          alternates: { canonical: `https://www.investradar.live/crypto/${id}` },
+          openGraph: {
+                  title: `${title} | InvestRadar`,
+                  description,
+                  url: `https://www.investradar.live/crypto/${id}`,
+                  images: [{ url: coinImage, width: 100, height: 100, alt: coinName }],
+          },
+          twitter: {
+                  card: 'summary',
+                  title: `${coinName} Price & News | InvestRadar`,
+                  description,
+                  images: [coinImage],
+          },
+    };
+}
+
 import Link from 'next/link';
 
 const NEWS_DOMAINS = 'reuters.com,apnews.com,wsj.com,ft.com,cnbc.com,bloomberg.com,forbes.com,marketwatch.com,businessinsider.com,seekingalpha.com,benzinga.com';
