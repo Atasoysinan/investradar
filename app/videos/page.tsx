@@ -1,3 +1,25 @@
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+    title: 'Finance Videos',
+    description:
+          'Curated financial and investment videos from CNBC, Bloomberg, Yahoo Finance, The Economist, WSJ, and Investopedia. Learn markets, crypto, ETFs, and macroeconomics.',
+    alternates: { canonical: 'https://www.investradar.live/videos' },
+    openGraph: {
+          title: 'Finance Videos | InvestRadar',
+          description:
+                  'Curated videos from CNBC, Bloomberg, Yahoo Finance, The Economist, WSJ and Investopedia.',
+          url: 'https://www.investradar.live/videos',
+          images: [{ url: '/og-default.png', width: 1200, height: 630, alt: 'Finance Videos — InvestRadar' }],
+    },
+    twitter: {
+          card: 'summary_large_image',
+          title: 'Finance Videos | InvestRadar',
+          description: 'Curated finance videos from CNBC, Bloomberg, Yahoo Finance, The Economist, WSJ & Investopedia.',
+          images: ['/og-default.png'],
+    },
+};
+
 import Link from 'next/link';
 
 const VIDEOS = [
