@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import StockPills from '@/components/StockPills';
 import NewsletterSignup from '@/components/NewsletterSignup';
@@ -131,7 +131,7 @@ export default function Home() {
   const [country, setCountry] = useState('us');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeMode, setActiveMode] = useState<'category' | 'topic'>('category');
-  const [activeTopic, setActiveTopic] = useState('');
+  const [activeTopic, setActiveTopic] = useState(''); const [headerVisible, setHeaderVisible] = useState(true); const lastScrollY = useRef(0); useEffect(() => { const handleScroll = () => { const y = window.scrollY; setHeaderVisible(y < lastScrollY.current || y < 80); lastScrollY.current = y; }; window.addEventListener('scroll', handleScroll, { passive: true }); return () => window.removeEventListener('scroll', handleScroll); }, []);
 
   const [sectorData, setSectorData] = useState<SectorItem[]>([]);
   const [sectorLoading, setSectorLoading] = useState(true);
@@ -208,7 +208,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-[#f5f6f7] text-gray-900">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm">
+      <header className={`bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm text-white">IR</div>
@@ -222,7 +222,7 @@ export default function Home() {
             <Link href="/videos" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block">
               Videos
             </Link>
-            <form onSubmit={handleSearch} className="flex gap-2">
+            <form onSubmit={handleSearch} className="hidden sm:flex gap-2">
               <input
                 type="text"
                 value={searchQuery}
@@ -390,14 +390,14 @@ export default function Home() {
 
             {/* Featured 3-column */}
             {featured.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex md:grid overflow-x-auto md:overflow-visible snap-x snap-mandatory gap-4 md:grid-cols-3 -mx-4 px-4 md:mx-0 md:px-0 pb-2">
                 {featured.map((article, i) => (
                   <a
                     key={i}
                     href={article.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-white border border-gray-100 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group flex flex-col"
+                    className="flex-shrink-0 w-[85%] sm:w-[60%] md:w-auto snap-start bg-white border border-gray-100 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group flex flex-col"
                   >
                     <div className="overflow-hidden bg-gray-100" style={{ height: '180px' }}>
                       <img
