@@ -46,7 +46,7 @@ function stripCDATA(s: string): string {
 }
 
 function stripHTML(s: string): string {
-  return s.replace(/<[^>]*>/g, '').trim();
+  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 }
 
 function parsePubDate(s: string): string {
@@ -151,7 +151,7 @@ export async function GET(request: NextRequest) {
   }
 
   pool.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
-  const articles = deduplicate(pool).slice(0, 30);
+  const articles = deduplicate(q ? pool.filter((a) => ((a.title || '') + ' ' + (a.description || '')).toLowerCase().includes(q.toLowerCase())) : pool).slice(0, 30);
 
   return NextResponse.json({ status: 'ok', articles });
 }
