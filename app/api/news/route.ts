@@ -11,6 +11,16 @@ const REGION_QUERIES: Record<string, string> = {
   asia: 'Asia China Japan India business economy markets finance stocks',
 };
 
+const EU_FEEDS = [
+  { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', name: 'BBC' },
+  { url: 'https://www.theguardian.com/uk/business/rss', name: 'Guardian' },
+  { url: 'https://rss.dw.com/rdf/rss-en-bus', name: 'DW' },
+];
+const ASIA_FEEDS = [
+  { url: 'https://asia.nikkei.com/rss/feed/nar', name: 'Nikkei Asia' },
+  { url: 'https://timesofindia.indiatimes.com/rssfeeds/1898055.cms', name: 'Times of India' },
+  { url: 'https://www.scmp.com/rss/92/feed', name: 'SCMP' },
+];
 const RSS_FEEDS = [
   { url: 'https://feeds.reuters.com/reuters/businessNews',               name: 'Reuters' },
   { url: 'https://feeds.apnews.com/rss/apf-finance',                    name: 'AP' },
@@ -117,7 +127,7 @@ export async function GET(request: NextRequest) {
       ? fetch(`https://gnews.io/api/v4/top-headlines?${gNewsQS}`, { next: { revalidate: 300 } }).then(r => r.json())
       : Promise.reject('No GNews key'),
     // RSS feeds
-    ...(region === 'us' ? RSS_FEEDS.map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[])) : []),
+    ...((region === 'europe' ? EU_FEEDS : region === 'asia' ? ASIA_FEEDS : RSS_FEEDS).map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[]))),
   ]);
 
   const pool: Article[] = [];
