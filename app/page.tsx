@@ -223,7 +223,7 @@ export default function Home() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 w-full max-w-full">
 
         {/* Status bar */}
         <div className="flex items-center justify-between mb-5">
@@ -299,7 +299,7 @@ export default function Home() {
                 </div>
                 <div className="flex flex-col justify-center p-6 sm:p-8 flex-1">
                   <span className="self-start mb-3 flex items-center gap-1">
-                    <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
+                    <span className={`max-w-[120px] truncate text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
                       {hero.source?.name || 'Unknown'}
                     </span>
                     {hero.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
@@ -320,7 +320,7 @@ export default function Home() {
 
             {/* Featured 3-column */}
             {featured.length > 0 && (
-              <div className="flex md:grid overflow-x-auto md:overflow-visible snap-x snap-mandatory gap-4 md:grid-cols-3 -mx-4 px-4 md:mx-0 md:px-0 pb-2">
+              <div className="flex md:grid overflow-x-auto md:overflow-visible snap-x snap-mandatory max-w-full gap-4 md:grid-cols-3 -mx-4 px-4 md:mx-0 md:px-0 pb-2">
                 {featured.map((article, i) => (
                   <a
                     key={i}
@@ -366,7 +366,7 @@ export default function Home() {
                   >
                     <div className="flex flex-col flex-1 min-w-0">
                       <div className="flex items-center gap-3">
-                        <span className={`flex-shrink-0 text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(article.source?.name)}`}>
+                        <span className={`flex-shrink-0 max-w-[120px] truncate text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(article.source?.name)}`}>
                           {article.source?.name || 'Unknown'}
                         </span>
                         {article.isLive && <span className="flex-shrink-0 text-xs font-bold text-green-600">🟢 LIVE</span>}
