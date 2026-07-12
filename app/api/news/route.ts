@@ -13,7 +13,7 @@ const REGION_QUERIES: Record<string, string> = {
 
 const EU_FEEDS = [
   { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', name: 'BBC' },
-  { url: 'https://www.theguardian.com/uk/business/rss', name: 'Guardian' },
+  { url: 'https://www.euronews.com/rss', name: 'Euronews' },
   { url: 'https://rss.dw.com/rdf/rss-en-bus', name: 'DW' },
 ];
 const ASIA_FEEDS = [
