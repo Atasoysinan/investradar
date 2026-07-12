@@ -159,9 +159,7 @@ export default function Home() {
     fetchNews();
   };
 
-  const hero = articles[0];
-  const featured = articles.slice(1, 4);
-  const compact = articles.slice(4);
+  const ordered = [...articles].sort((a, b) => ((b.urlToImage || b.image) ? 1 : 0) - ((a.urlToImage || a.image) ? 1 : 0));  const hero = ordered[0];
 
   const filterPill = (active: boolean) =>
     `px-3 py-1 rounded text-sm font-medium transition-colors border ${
