@@ -78,7 +78,7 @@ async function fetchRSS(feedUrl: string, sourceName: string): Promise<Article[]>
     if (!title || !url) return [];
     const publishedAt = dateM ? parsePubDate(stripCDATA(dateM[1])) : new Date().toISOString();
     const description = descM ? stripHTML(stripCDATA(descM[1])).slice(0, 200) : '';
-    const urlToImage  = imgM ? imgM[1] : null;
+    const urlToImage  = imgM ? imgM[1] : (item.match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || null;
     return [{ title, description, url, urlToImage, publishedAt, source: { name: sourceName }, isLive: checkIsLive(publishedAt) }];
   });
 }
