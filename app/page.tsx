@@ -159,7 +159,7 @@ export default function Home() {
     fetchNews();
   };
 
-  const ordered = [...articles].sort((a: Article, b: Article) => ((b.urlToImage || b.image) ? 1 : 0) - ((a.urlToImage || a.image) ? 1 : 0));  const hero = ordered[0]; const featured = ordered.slice(1, 4); const compact = ordered.slice(4);
+  const ordered = [...articles].sort((a: Article, b: Article) => ((b.urlToImage) ? 1 : 0) - ((a.urlToImage) ? 1 : 0));  const hero = ordered[0]; const featured = ordered.slice(1, 4); const compact = ordered.slice(4);
 
   const filterPill = (active: boolean) =>
     `px-3 py-1 rounded text-sm font-medium transition-colors border ${
