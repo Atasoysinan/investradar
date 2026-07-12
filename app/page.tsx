@@ -39,31 +39,10 @@ interface TopicNews {
   geopolitics: Article[];
 }
 
-const CATEGORIES = [
-  { label: 'Business', value: 'business' },
-  { label: 'Technology', value: 'technology' },
-  { label: 'Politics', value: 'general' },
-  { label: 'Science', value: 'science' },
-  { label: 'Health', value: 'health' },
-];
-
 const REGIONS = [
   { label: '🇺🇸 USA', value: 'us' },
-  { label: '🇬🇧 UK', value: 'gb' },
-  { label: '🇩🇪 Germany', value: 'de' },
-  { label: '🇫🇷 France', value: 'fr' },
-  { label: '🇯🇵 Japan', value: 'jp' },
-  { label: '🇨🇳 China', value: 'cn' },
-  { label: '🇦🇺 Australia', value: 'au' },
-];
-
-const TOPICS = [
-  { label: '📈 Markets', query: 'stock market investing' },
-  { label: '🏦 Fed / ECB', query: 'federal reserve interest rates central bank' },
-  { label: '⚡ Energy', query: 'oil energy commodities' },
-  { label: '💻 Tech', query: 'technology AI semiconductor' },
-  { label: '🌍 Geopolitics', query: 'war sanctions elections geopolitics' },
-  { label: '₿ Crypto', query: 'bitcoin cryptocurrency' },
+  { label: '🇪🇺 Europe', value: 'europe' },
+  { label: '🌏 Asia', value: 'asia' },
 ];
 
 function timeAgo(dateStr: string) {
@@ -82,29 +61,26 @@ function sourceLabelClass(name: string = '') {
   return 'bg-gray-700 text-white';
 }
 
-const SOURCE_FALLBACKS: Record<string, string> = {
-  'CNBC': 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
-  'Reuters': 'https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?w=800&q=80',
-  'Associated Press': 'https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&q=80',
-  'Bloomberg': 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
-};
-
-const CATEGORY_FALLBACKS: Record<string, string> = {
-  business: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80',
-  technology: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80',
-  science: 'https://images.unsplash.com/photo-1564325724739-bae0bd08762c?w=800&q=80',
-  health: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&q=80',
-  politics: 'https://images.unsplash.com/photo-1529107386315-e1a2ed48a620?w=800&q=80',
-};
-
 const DEFAULT_FALLBACK = 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80';
 
-function getArticleImage(article: { urlToImage?: string | null; image?: string | null; source?: { name?: string } }, category?: string): string {
+const TOPIC_FALLBACKS: { keys: string[]; image: string }[] = [
+  { keys: ['crypto', 'bitcoin', 'ethereum', 'blockchain'], image: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=800&q=80' },
+  { keys: ['oil', 'energy', 'gas', 'opec', 'commodit'], image: 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?w=800&q=80' },
+  { keys: ['fed', 'interest rate', 'central bank', 'inflation', 'ecb'], image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800&q=80' },
+  { keys: ['war', 'sanction', 'election', 'military', 'geopolit', 'conflict'], image: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&q=80' },
+  { keys: ['artificial intelligence', 'semiconductor', 'chip', 'software', 'tech'], image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80' },
+  { keys: ['health', 'medicine', 'drug', 'vaccine', 'disease'], image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&q=80' },
+  { keys: ['science', 'research', 'space', 'climate'], image: 'https://images.unsplash.com/photo-1564325724739-bae0bd08762c?w=800&q=80' },
+  { keys: ['stock', 'market', 'shares', 'nasdaq', 'earnings', 'trading'], image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80' },
+];
+
+function getArticleImage(article: { urlToImage?: string | null; image?: string | null; title?: string; description?: string }): string {
   if (article.urlToImage) return article.urlToImage;
   if (article.image) return article.image;
-  const sourceName = article.source?.name || '';
-  if (SOURCE_FALLBACKS[sourceName]) return SOURCE_FALLBACKS[sourceName];
-  if (category && CATEGORY_FALLBACKS[category]) return CATEGORY_FALLBACKS[category];
+  const text = ((article.title || '') + ' ' + (article.description || '')).toLowerCase();
+  for (const topic of TOPIC_FALLBACKS) {
+    if (topic.keys.some(k => text.includes(k))) return topic.image;
+  }
   return DEFAULT_FALLBACK;
 }
 
@@ -127,11 +103,9 @@ export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [category, setCategory] = useState('business');
-  const [country, setCountry] = useState('us');
+  const [region, setRegion] = useState('us');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeMode, setActiveMode] = useState<'category' | 'topic'>('category');
-  const [activeTopic, setActiveTopic] = useState(''); const [headerVisible, setHeaderVisible] = useState(true); const lastScrollY = useRef(0); useEffect(() => { const handleScroll = () => { const y = window.scrollY; setHeaderVisible(y < lastScrollY.current || y < 80); lastScrollY.current = y; }; window.addEventListener('scroll', handleScroll, { passive: true }); return () => window.removeEventListener('scroll', handleScroll); }, []);
+  const [headerVisible, setHeaderVisible] = useState(true); const lastScrollY = useRef(0); useEffect(() => { const handleScroll = () => { const y = window.scrollY; setHeaderVisible(y < lastScrollY.current || y < 80); lastScrollY.current = y; }; window.addEventListener('scroll', handleScroll, { passive: true }); return () => window.removeEventListener('scroll', handleScroll); }, []);
 
   const [sectorData, setSectorData] = useState<SectorItem[]>([]);
   const [sectorLoading, setSectorLoading] = useState(true);
@@ -145,12 +119,10 @@ export default function Home() {
     setError('');
     try {
       let url = '/api/news?';
-      if (activeMode === 'topic' && activeTopic) {
-        url += `q=${encodeURIComponent(activeTopic)}`;
-      } else if (searchQuery) {
+      if (searchQuery) {
         url += `q=${encodeURIComponent(searchQuery)}`;
       } else {
-        url += `category=${category}&country=${country}`;
+        url += `region=${region}`;
       }
       const res = await fetch(url);
       const data = await res.json();
@@ -161,7 +133,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [category, country, searchQuery, activeMode, activeTopic]);
+  }, [region, searchQuery]);
 
   useEffect(() => { fetchNews(); }, [fetchNews]);
 
@@ -184,15 +156,7 @@ export default function Home() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setActiveMode('category');
-    setActiveTopic('');
     fetchNews();
-  };
-
-  const handleTopicClick = (query: string) => {
-    setActiveTopic(query);
-    setActiveMode('topic');
-    setSearchQuery('');
   };
 
   const hero = articles[0];
@@ -240,50 +204,16 @@ export default function Home() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Quick Topics */}
-        <div className="mb-5">
-          <p className="text-xs text-gray-400 uppercase tracking-wider mb-3 font-semibold">Quick Topics</p>
-          <div className="flex flex-wrap gap-2">
-            {TOPICS.map(t => (
-              <button
-                key={t.query}
-                onClick={() => handleTopicClick(t.query)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors border ${
-                  activeTopic === t.query && activeMode === 'topic'
-                    ? 'bg-gray-900 text-white border-gray-900'
-                    : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400 hover:text-gray-900'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Filters */}
+        {/* Region */}
         <div className="flex flex-wrap gap-6 mb-6 pb-6 border-b border-gray-200">
-          <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 font-semibold">Category</p>
-            <div className="flex flex-wrap gap-2">
-              {CATEGORIES.map(c => (
-                <button
-                  key={c.value}
-                  onClick={() => { setCategory(c.value); setActiveMode('category'); setActiveTopic(''); setSearchQuery(''); }}
-                  className={filterPill(category === c.value && activeMode === 'category')}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-          </div>
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 font-semibold">Region</p>
             <div className="flex flex-wrap gap-2">
               {REGIONS.map(r => (
                 <button
                   key={r.value}
-                  onClick={() => { setCountry(r.value); setActiveMode('category'); setActiveTopic(''); setSearchQuery(''); }}
-                  className={filterPill(country === r.value && activeMode === 'category')}
+                  onClick={() => { setRegion(r.value); setSearchQuery(''); }}
+                  className={filterPill(region === r.value && !searchQuery)}
                 >
                   {r.label}
                 </button>
@@ -299,8 +229,8 @@ export default function Home() {
         <div className="flex items-center justify-between mb-5">
           <p className="text-sm text-gray-500 font-medium">
             {loading ? 'Loading...' : error ? '' : `${articles.length} stories`}
-            {activeMode === 'topic' && activeTopic && !loading && (
-              <span className="ml-2 text-blue-600">· Topic search</span>
+            {searchQuery && !loading && (
+              <span className="ml-2 text-blue-600">· Search results</span>
             )}
           </p>
           <button
@@ -357,17 +287,17 @@ export default function Home() {
                 href={hero.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group"
+                className="flex flex-col sm:flex-row bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group"
               >
-                <div className="w-3/5 flex-shrink-0" style={{ height: '320px' }}>
+                <div className="w-full sm:w-3/5 flex-shrink-0 h-56 sm:h-80">
                   <img
-                    src={getArticleImage(hero, category)}
+                    src={getArticleImage(hero)}
                     alt={decodeHtml(hero.title)}
                     className="w-full h-full object-cover"
                     onError={e => { (e.target as HTMLImageElement).src = DEFAULT_FALLBACK; }}
                   />
                 </div>
-                <div className="flex flex-col justify-center p-8 flex-1">
+                <div className="flex flex-col justify-center p-6 sm:p-8 flex-1">
                   <span className="self-start mb-3 flex items-center gap-1">
                     <span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
                       {hero.source?.name || 'Unknown'}
@@ -401,7 +331,7 @@ export default function Home() {
                   >
                     <div className="overflow-hidden bg-gray-100" style={{ height: '180px' }}>
                       <img
-                        src={getArticleImage(article, category)}
+                        src={getArticleImage(article)}
                         alt={decodeHtml(article.title)}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         onError={e => { (e.target as HTMLImageElement).src = DEFAULT_FALLBACK; }}
