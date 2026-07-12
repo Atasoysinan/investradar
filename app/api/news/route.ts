@@ -5,31 +5,22 @@ const GNEWS_KEY   = process.env.GNEWS_KEY;
 
 const TRUSTED_DOMAINS = 'reuters.com,apnews.com,wsj.com,ft.com,cnbc.com,bloomberg.com,forbes.com,marketwatch.com,businessinsider.com,economist.com,bbc.co.uk,bbc.com,theguardian.com,nytimes.com,washingtonpost.com,politico.com,axios.com,thehill.com,investing.com,seekingalpha.com,benzinga.com,oilprice.com,techcrunch.com,arstechnica.com,wired.com,cnet.com,theverge.com';
 
-const CATEGORY_QUERIES: Record<string, string> = {
-  business:   'business finance economy markets',
-  technology: 'technology',
-  general:    'politics news world',
-  science:    'science',
-  health:     'health medicine',
-};
-
-const GNEWS_CATEGORIES: Record<string, string> = {
-  business:   'business',
-  technology: 'technology',
-  general:    'politics',
-  science:    'science',
-  health:     'health',
-};
-
 const REGION_QUERIES: Record<string, string> = {
-  gb: 'UK business economy finance',
-  de: 'Germany business economy finance',
-  fr: 'France business economy finance',
-  jp: 'Japan business economy finance',
-  cn: 'China business economy finance',
-  au: 'Australia business economy finance',
+  us: 'United States business economy markets finance stocks Wall Street',
+  europe: 'Europe European Union UK Germany France business economy markets finance ECB',
+  asia: 'Asia China Japan India business economy markets finance stocks',
 };
 
+const EU_FEEDS = [
+  { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', name: 'BBC' },
+  { url: 'https://feeds.skynews.com/feeds/rss/world.xml', name: 'Sky News' },
+  { url: 'https://rss.dw.com/rdf/rss-en-bus', name: 'DW' },
+];
+const ASIA_FEEDS = [
+  { url: 'https://asia.nikkei.com/rss/feed/nar', name: 'Nikkei Asia' },
+  { url: 'https://timesofindia.indiatimes.com/rssfeeds/1898055.cms', name: 'Times of India' },
+  { url: 'https://www.scmp.com/rss/92/feed', name: 'SCMP' },
+];
 const RSS_FEEDS = [
   { url: 'https://feeds.reuters.com/reuters/businessNews',               name: 'Reuters' },
   { url: 'https://feeds.apnews.com/rss/apf-finance',                    name: 'AP' },
@@ -87,7 +78,7 @@ async function fetchRSS(feedUrl: string, sourceName: string): Promise<Article[]>
     if (!title || !url) return [];
     const publishedAt = dateM ? parsePubDate(stripCDATA(dateM[1])) : new Date().toISOString();
     const description = descM ? stripHTML(stripCDATA(descM[1])).slice(0, 200) : '';
-    const urlToImage  = imgM ? imgM[1] : null;
+    const urlToImage  = imgM ? imgM[1] : (item.match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || null;
     return [{ title, description, url, urlToImage, publishedAt, source: { name: sourceName }, isLive: checkIsLive(publishedAt) }];
   });
 }
@@ -113,26 +104,17 @@ function deduplicate(articles: Article[]): Article[] {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const category = searchParams.get('category') || 'business';
-  const country  = searchParams.get('country')  || 'us';
+  const region = searchParams.get('region') || searchParams.get('country') || 'us';
   const q        = searchParams.get('q')         || '';
 
   // NewsAPI query
-  let newsApiQuery: string;
-  if (q) {
-    newsApiQuery = q;
-  } else if (country !== 'us' && REGION_QUERIES[country]) {
-    newsApiQuery = REGION_QUERIES[country];
-  } else {
-    newsApiQuery = CATEGORY_QUERIES[category] || 'business finance';
-  }
+  const newsApiQuery = q ? q : (REGION_QUERIES[region] || REGION_QUERIES.us);
 
   // GNews params
-  const gNewsCategory = GNEWS_CATEGORIES[category] || 'general';
-  const gNewsCountry  = country === 'gb' ? 'gb' : 'us';
+  const gNewsCountry = region === 'europe' ? 'gb' : region === 'asia' ? 'jp' : 'us';
   const gNewsQS = q
     ? `q=${encodeURIComponent(q)}&lang=en&country=${gNewsCountry}&max=10&sortby=publishedAt&token=${GNEWS_KEY}`
-    : `category=${gNewsCategory}&lang=en&country=${gNewsCountry}&max=10&sortby=publishedAt&token=${GNEWS_KEY}`;
+    : `category=business&lang=en&country=${gNewsCountry}&max=10&sortby=publishedAt&token=${GNEWS_KEY}`;
 
   const [newsApiResult, gNewsResult, ...rssResults] = await Promise.allSettled([
     // NewsAPI
@@ -145,7 +127,7 @@ export async function GET(request: NextRequest) {
       ? fetch(`https://gnews.io/api/v4/top-headlines?${gNewsQS}`, { next: { revalidate: 300 } }).then(r => r.json())
       : Promise.reject('No GNews key'),
     // RSS feeds
-    ...RSS_FEEDS.map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[])),
+    ...((region === 'europe' ? EU_FEEDS : region === 'asia' ? ASIA_FEEDS : RSS_FEEDS).map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[]))),
   ]);
 
   const pool: Article[] = [];
