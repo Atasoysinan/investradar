@@ -15,7 +15,7 @@ const EU_FEEDS = [
   { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', name: 'BBC' },
   { url: 'https://feeds.skynews.com/feeds/rss/world.xml', name: 'Sky News' },
   { url: 'https://rss.dw.com/rdf/rss-en-bus', name: 'DW' },
-  { url: 'https://www.france24.com/en/business/rss', name: 'France24' },
+  { url: 'https://www.france24.com/en/rss', name: 'France24' },
   { url: 'https://www.euronews.com/rss?level=theme&name=news', name: 'Euronews' },
 ];
 const ASIA_FEEDS = [
@@ -25,7 +25,7 @@ const ASIA_FEEDS = [
   { url: 'https://www.thehindu.com/business/feeder/default.rss', name: 'The Hindu' },
   { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera' },
   { url: 'https://www.japantimes.co.jp/feed/', name: 'Japan Times' },
-  { url: 'https://www.abc.net.au/news/feed/51892/rss.xml', name: 'ABC Australia' },
+  { url: 'https://www.smh.com.au/rss/business.xml', name: 'Sydney Morning Herald' },
 ];
 const RSS_FEEDS = [
   { url: 'https://feeds.reuters.com/reuters/businessNews',               name: 'Reuters' },
