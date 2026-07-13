@@ -43,6 +43,7 @@ interface Article {
   publishedAt: string;
   source: { name: string };
   isLive: boolean;
+  provider?: string;
 }
 
 function checkIsLive(publishedAt: string): boolean {
@@ -54,7 +55,7 @@ function stripCDATA(s: string): string {
 }
 
 function stripHTML(s: string): string {
-  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 }
 
 function parsePubDate(s: string): string {
@@ -137,7 +138,7 @@ export async function GET(request: NextRequest) {
     // NewsData.io (skip if no key)
     NEWSDATA_KEY ? fetch(`https://newsdata.io/api/1/latest?apikey=${NEWSDATA_KEY}&language=en&category=business,politics,world${q ? '&q=' + encodeURIComponent(q) : ''}`, { next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No NewsData key'),
     // Mediastack (skip if no key)
-    MEDIASTACK_KEY ? fetch(`https://api.mediastack.com/v1/news?access_key=${MEDIASTACK_KEY}&languages=en&categories=business${q ? '&keywords=' + encodeURIComponent(q) : ''}&limit=25&sort=published_desc`, { next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No Mediastack key'),
+    MEDIASTACK_KEY ? fetch(`http://api.mediastack.com/v1/news?access_key=${MEDIASTACK_KEY}&languages=en&categories=business${q ? '&keywords=' + encodeURIComponent(q) : ''}&limit=25&sort=published_desc`, { next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No Mediastack key'),
     // RSS feeds
     ...((region === 'europe' ? EU_FEEDS : region === 'asia' ? ASIA_FEEDS : RSS_FEEDS).map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[]))),
   ]);
@@ -158,14 +159,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (newsDataResult.status === 'fulfilled') { for (const a of (newsDataResult.value.results || [])) { if (!a.title) continue; pool.push({ title: a.title, description: stripHTML(a.description || ''), url: a.link, urlToImage: a.image_url || null, publishedAt: parsePubDate(a.pubDate), source: { name: a.source_id || 'NewsData' }, isLive: checkIsLive(parsePubDate(a.pubDate)) }); } }
-  if (mediastackResult.status === 'fulfilled') { for (const a of (mediastackResult.value.data || [])) { if (!a.title) continue; pool.push({ title: a.title, description: stripHTML(a.description || ''), url: a.url, urlToImage: a.image || null, publishedAt: parsePubDate(a.published_at), source: { name: a.source || 'Mediastack' }, isLive: checkIsLive(parsePubDate(a.published_at)) }); } }
+  if (newsDataResult.status === 'fulfilled') { for (const a of (newsDataResult.value.results || [])) { if (!a.title) continue; pool.push({ title: a.title, description: stripHTML(a.description || ''), url: a.link, urlToImage: a.image_url || null, publishedAt: parsePubDate(a.pubDate), source: { name: a.source_id || 'NewsData' }, isLive: checkIsLive(parsePubDate(a.pubDate)), provider: 'api' }); } }
+  if (mediastackResult.status === 'fulfilled') { for (const a of (mediastackResult.value.data || [])) { if (!a.title) continue; pool.push({ title: a.title, description: stripHTML(a.description || ''), url: a.url, urlToImage: a.image || null, publishedAt: parsePubDate(a.published_at), source: { name: a.source || 'Mediastack' }, isLive: checkIsLive(parsePubDate(a.published_at)), provider: 'api' }); } }
   for (const r of rssResults) {
     if (r.status === 'fulfilled') pool.push(...(r.value as Article[]));
   }
 
+  for (const a of pool) { if (a && a.title) a.title = stripHTML(a.title); }
   pool.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
-  const articles = deduplicate(q ? pool.filter((a) => ((a.title || '') + ' ' + (a.description || '')).toLowerCase().includes(q.toLowerCase())) : pool).slice(0, 30);
+  const deduped = deduplicate(q ? pool.filter((a) => ((a.title || '') + ' ' + (a.description || '')).toLowerCase().includes(q.toLowerCase())) : pool);
+  const apiSlots = deduped.filter(a => a.provider === 'api').slice(0, 6);
+  const rest = deduped.filter(a => a.provider !== 'api');
+  const articles = [...apiSlots, ...rest].slice(0, 30);
 
   return NextResponse.json({ status: 'ok', articles });
 }
