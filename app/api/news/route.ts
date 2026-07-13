@@ -168,9 +168,9 @@ export async function GET(request: NextRequest) {
   for (const a of pool) { if (a && a.title) a.title = stripHTML(a.title); }
   pool.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
   const deduped = deduplicate(q ? pool.filter((a) => ((a.title || '') + ' ' + (a.description || '')).toLowerCase().includes(q.toLowerCase())) : pool);
-  const apiSlots = deduped.filter(a => a.provider === 'api').slice(0, 6);
+  const apiSlots = deduped.filter(a => a.provider === 'api').slice(0, 2);
   const rest = deduped.filter(a => a.provider !== 'api');
-  const articles = [...apiSlots, ...rest].slice(0, 30);
+  const articles = (() => { const out = rest.slice(); const positions = [3, 6]; apiSlots.forEach((it, k) => { const p = Math.min(positions[k] ?? out.length, out.length); out.splice(p, 0, it); }); return out.slice(0, 30); })();
 
   return NextResponse.json({ status: 'ok', articles });
 }
