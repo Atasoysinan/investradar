@@ -15,16 +15,24 @@ const EU_FEEDS = [
   { url: 'https://feeds.bbci.co.uk/news/business/rss.xml', name: 'BBC' },
   { url: 'https://feeds.skynews.com/feeds/rss/world.xml', name: 'Sky News' },
   { url: 'https://rss.dw.com/rdf/rss-en-bus', name: 'DW' },
+  { url: 'https://www.france24.com/en/business/rss', name: 'France24' },
+  { url: 'https://www.euronews.com/rss?level=theme&name=news', name: 'Euronews' },
 ];
 const ASIA_FEEDS = [
   { url: 'https://asia.nikkei.com/rss/feed/nar', name: 'Nikkei Asia' },
   { url: 'https://timesofindia.indiatimes.com/rssfeeds/1898055.cms', name: 'Times of India' },
   { url: 'https://www.scmp.com/rss/92/feed', name: 'SCMP' },
+  { url: 'https://www.thehindu.com/business/feeder/default.rss', name: 'The Hindu' },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera' },
+  { url: 'https://www.japantimes.co.jp/feed/', name: 'Japan Times' },
+  { url: 'https://www.abc.net.au/news/feed/51892/rss.xml', name: 'ABC Australia' },
 ];
 const RSS_FEEDS = [
   { url: 'https://feeds.reuters.com/reuters/businessNews',               name: 'Reuters' },
   { url: 'https://feeds.apnews.com/rss/apf-finance',                    name: 'AP' },
   { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html',       name: 'CNBC' },
+  { url: 'https://www.theguardian.com/world/rss', name: 'The Guardian' },
+  { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'WSJ World' },
 ];
 
 interface Article {
