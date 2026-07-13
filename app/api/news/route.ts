@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const NEWSAPI_KEY = process.env.NEWSAPI_KEY;
-const GNEWS_KEY   = process.env.GNEWS_KEY;
+const GNEWS_KEY   = process.env.GNEWS_KEY; const NEWSDATA_KEY = process.env.NEWSDATA_KEY; const MEDIASTACK_KEY = process.env.MEDIASTACK_KEY;
 
 const TRUSTED_DOMAINS = 'reuters.com,apnews.com,wsj.com,ft.com,cnbc.com,bloomberg.com,forbes.com,marketwatch.com,businessinsider.com,economist.com,bbc.co.uk,bbc.com,theguardian.com,nytimes.com,washingtonpost.com,politico.com,axios.com,thehill.com,investing.com,seekingalpha.com,benzinga.com,oilprice.com,techcrunch.com,arstechnica.com,wired.com,cnet.com,theverge.com';
 
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
     ? `q=${encodeURIComponent(q)}&lang=en&country=${gNewsCountry}&max=10&sortby=publishedAt&token=${GNEWS_KEY}`
     : `category=business&lang=en&country=${gNewsCountry}&max=10&sortby=publishedAt&token=${GNEWS_KEY}`;
 
-  const [newsApiResult, gNewsResult, ...rssResults] = await Promise.allSettled([
+  const [newsApiResult, gNewsResult, newsDataResult, mediastackResult, ...rssResults] = await Promise.allSettled([
     // NewsAPI
     fetch(
       `https://newsapi.org/v2/everything?q=${encodeURIComponent(newsApiQuery)}&language=en&sortBy=publishedAt&pageSize=20&domains=${TRUSTED_DOMAINS}&apiKey=${NEWSAPI_KEY}`,
@@ -126,6 +126,10 @@ export async function GET(request: NextRequest) {
     GNEWS_KEY
       ? fetch(`https://gnews.io/api/v4/top-headlines?${gNewsQS}`, { next: { revalidate: 300 } }).then(r => r.json())
       : Promise.reject('No GNews key'),
+    // NewsData.io (skip if no key)
+    NEWSDATA_KEY ? fetch(`https://newsdata.io/api/1/latest?apikey=${NEWSDATA_KEY}&language=en&category=business,politics,world${q ? '&q=' + encodeURIComponent(q) : ''}`, { next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No NewsData key'),
+    // Mediastack (skip if no key)
+    MEDIASTACK_KEY ? fetch(`https://api.mediastack.com/v1/news?access_key=${MEDIASTACK_KEY}&languages=en&categories=business${q ? '&keywords=' + encodeURIComponent(q) : ''}&limit=25&sort=published_desc`, { next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No Mediastack key'),
     // RSS feeds
     ...((region === 'europe' ? EU_FEEDS : region === 'asia' ? ASIA_FEEDS : RSS_FEEDS).map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[]))),
   ]);
@@ -146,6 +150,8 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  if (newsDataResult.status === 'fulfilled') { for (const a of (newsDataResult.value.results || [])) { if (!a.title) continue; pool.push({ title: a.title, description: stripHTML(a.description || ''), url: a.link, urlToImage: a.image_url || null, publishedAt: parsePubDate(a.pubDate), source: { name: a.source_id || 'NewsData' }, isLive: checkIsLive(parsePubDate(a.pubDate)) }); } }
+  if (mediastackResult.status === 'fulfilled') { for (const a of (mediastackResult.value.data || [])) { if (!a.title) continue; pool.push({ title: a.title, description: stripHTML(a.description || ''), url: a.url, urlToImage: a.image || null, publishedAt: parsePubDate(a.published_at), source: { name: a.source || 'Mediastack' }, isLive: checkIsLive(parsePubDate(a.published_at)) }); } }
   for (const r of rssResults) {
     if (r.status === 'fulfilled') pool.push(...(r.value as Article[]));
   }
