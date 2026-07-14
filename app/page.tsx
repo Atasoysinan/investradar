@@ -61,27 +61,48 @@ function sourceLabelClass(name: string = '') {
   return 'bg-gray-700 text-white';
 }
 
-const DEFAULT_FALLBACK = 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80';
+const DEFAULT_FALLBACK = 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1600&q=90';
 
 const TOPIC_FALLBACKS: { keys: string[]; image: string }[] = [
-  { keys: ['crypto', 'bitcoin', 'ethereum', 'blockchain'], image: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=800&q=80' },
-  { keys: ['oil', 'energy', 'gas', 'opec', 'commodit'], image: 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?w=800&q=80' },
-  { keys: ['fed', 'interest rate', 'central bank', 'inflation', 'ecb'], image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=800&q=80' },
-  { keys: ['war', 'sanction', 'election', 'military', 'geopolit', 'conflict'], image: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=800&q=80' },
-  { keys: ['artificial intelligence', 'semiconductor', 'chip', 'software', 'tech'], image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80' },
-  { keys: ['health', 'medicine', 'drug', 'vaccine', 'disease'], image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=800&q=80' },
-  { keys: ['science', 'research', 'space', 'climate'], image: 'https://images.unsplash.com/photo-1564325724739-bae0bd08762c?w=800&q=80' },
-  { keys: ['stock', 'market', 'shares', 'nasdaq', 'earnings', 'trading'], image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&q=80' },
+  { keys: ['crypto', 'bitcoin', 'ethereum', 'blockchain'], image: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1600&q=90' },
+  { keys: ['oil', 'energy', 'gas', 'opec', 'commodit'], image: 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?w=1600&q=90' },
+  { keys: ['fed', 'interest rate', 'central bank', 'inflation', 'ecb'], image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=1600&q=90' },
+  { keys: ['war', 'sanction', 'election', 'military', 'geopolit', 'conflict'], image: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=1600&q=90' },
+  { keys: ['artificial intelligence', 'semiconductor', 'chip', 'software', 'tech'], image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&q=90' },
+  { keys: ['health', 'medicine', 'drug', 'vaccine', 'disease'], image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1600&q=90' },
+  { keys: ['science', 'research', 'space', 'climate'], image: 'https://images.unsplash.com/photo-1564325724739-bae0bd08762c?w=1600&q=90' },
+  { keys: ['stock', 'market', 'shares', 'nasdaq', 'earnings', 'trading'], image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1600&q=90' },
 ];
 
+function upgradeImageQuality(u: string): string {
+  try {
+    const url = new URL(u);
+    const h = url.hostname;
+    const sp = url.searchParams;
+    if (h.includes('unsplash.com')) {
+      if (sp.has('w')) sp.set('w', '1600');
+      if (sp.has('q')) sp.set('q', '90');
+    } else if (h.includes('guim.co.uk')) {
+      if (sp.has('width')) sp.set('width', '1200');
+      if (sp.has('quality')) sp.set('quality', '90');
+    } else if (h.includes('insider.com') || h.includes('infomaker.io')) {
+      if (sp.has('width')) sp.set('width', '1600');
+      if (sp.has('q')) sp.set('q', '90');
+    }
+    return url.toString();
+  } catch {
+    return u;
+  }
+}
+
 function getArticleImage(article: { urlToImage?: string | null; image?: string | null; title?: string; description?: string }): string {
-  if (article.urlToImage) return article.urlToImage;
-  if (article.image) return article.image;
+  if (article.urlToImage) return upgradeImageQuality(article.urlToImage);
+  if (article.image) return upgradeImageQuality(article.image);
   const text = ((article.title || '') + ' ' + (article.description || '')).toLowerCase();
   for (const topic of TOPIC_FALLBACKS) {
-    if (topic.keys.some(k => text.includes(k))) return topic.image;
+    if (topic.keys.some(k => text.includes(k))) return upgradeImageQuality(topic.image);
   }
-  return DEFAULT_FALLBACK;
+  return upgradeImageQuality(DEFAULT_FALLBACK);
 }
 
 function decodeHtml(str: string): string {
@@ -135,7 +156,11 @@ export default function Home() {
     }
   }, [region, searchQuery]);
 
-  useEffect(() => { fetchNews(); }, [fetchNews]);
+  useEffect(() => {
+    fetchNews();
+    const id = setInterval(fetchNews, 300000);
+    return () => clearInterval(id);
+  }, [fetchNews]);
 
   useEffect(() => {
     Promise.allSettled([
@@ -226,17 +251,11 @@ export default function Home() {
         {/* Status bar */}
         <div className="flex items-center justify-between mb-5">
           <p className="text-sm text-gray-500 font-medium">
-            {loading ? 'Loading...' : error ? '' : `${articles.length} stories`}
+            {loading ? 'Loading...' : error ? '' : ''}
             {searchQuery && !loading && (
               <span className="ml-2 text-blue-600">· Search results</span>
             )}
           </p>
-          <button
-            onClick={fetchNews}
-            className="text-xs text-gray-600 border border-gray-300 bg-white hover:bg-gray-50 hover:border-gray-400 transition-colors px-3 py-1 rounded font-medium"
-          >
-            ↻ Refresh
-          </button>
         </div>
 
         {/* Error */}
@@ -478,7 +497,7 @@ export default function Home() {
                         {a.urlToImage ? (
                           <div className="h-28 bg-gray-100 rounded overflow-hidden mb-2">
                             <img
-                              src={a.urlToImage}
+                              src={upgradeImageQuality(a.urlToImage)}
                               alt=""
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
