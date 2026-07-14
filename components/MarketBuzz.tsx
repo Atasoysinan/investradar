@@ -73,7 +73,11 @@ export default function MarketBuzz() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    const id = setInterval(load, 60000);
+    return () => clearInterval(id);
+  }, []);
 
   const skeleton = [...Array(7)].map((_, i) => (
     <div key={i} className="px-3 py-2.5 flex items-center justify-between animate-pulse border-b border-gray-100">
@@ -97,12 +101,6 @@ export default function MarketBuzz() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <h2 className="text-xs font-bold text-black uppercase tracking-widest">Market Buzz</h2>
-        <button
-          onClick={load}
-          className="text-xs text-gray-400 hover:text-black transition-colors px-2 py-1 rounded border border-gray-200"
-        >
-          ↻ Refresh
-        </button>
       </div>
 
       {/* Tabs */}
@@ -143,7 +141,7 @@ export default function MarketBuzz() {
                 {item.price != null ? (
                   <>
                     <span className="text-black text-xs">{fmtPrice(item.price)}</span>
-                    <span className={`text-xs font-medium flex-shrink-0 ${(item.dp ?? 0) >= 0 ? 'text-black' : 'text-gray-500'}`}>
+                    <span className={`text-xs font-medium flex-shrink-0 ${(item.dp ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {(item.dp ?? 0) >= 0 ? '▲' : '▼'} {Math.abs(item.dp ?? 0).toFixed(2)}%
                     </span>
                   </>
@@ -170,7 +168,7 @@ export default function MarketBuzz() {
                     : `${item.watchlist_count}`} watching
                 </span>
                 {item.sentiment && (
-                  <span className={`text-xs font-medium ${item.sentiment === 'Bullish' ? 'text-black' : 'text-gray-500'}`}>
+                  <span className={`text-xs font-medium ${item.sentiment === 'Bullish' ? 'text-green-600' : 'text-red-600'}`}>
                     {item.sentiment}
                   </span>
                 )}
@@ -212,7 +210,7 @@ export default function MarketBuzz() {
               </div>
               <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
                 <span className="text-black text-xs">{fmtPrice(coin.current_price)}</span>
-                <span className={`text-xs font-medium flex-shrink-0 ${coin.price_change_percentage_24h >= 0 ? 'text-black' : 'text-gray-500'}`}>
+                <span className={`text-xs font-medium flex-shrink-0 ${coin.price_change_percentage_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {coin.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
                 </span>
               </div>
