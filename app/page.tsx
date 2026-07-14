@@ -100,9 +100,9 @@ function getArticleImage(article: { urlToImage?: string | null; image?: string |
   if (article.image) return upgradeImageQuality(article.image);
   const text = ((article.title || '') + ' ' + (article.description || '')).toLowerCase();
   for (const topic of TOPIC_FALLBACKS) {
-    if (topic.keys.some(k => text.includes(k))) return topic.image;
+    if (topic.keys.some(k => text.includes(k))) return upgradeImageQuality(topic.image);
   }
-  return DEFAULT_FALLBACK;
+  return upgradeImageQuality(DEFAULT_FALLBACK);
 }
 
 function decodeHtml(str: string): string {
