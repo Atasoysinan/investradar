@@ -497,7 +497,7 @@ export default function Home() {
                         {a.urlToImage ? (
                           <div className="h-28 bg-gray-100 rounded overflow-hidden mb-2">
                             <img
-                              src={a.urlToImage}
+                              src={upgradeImageQuality(a.urlToImage)}
                               alt=""
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                               onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
