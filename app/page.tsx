@@ -82,9 +82,6 @@ function upgradeImageQuality(u: string): string {
     if (h.includes('unsplash.com')) {
       if (sp.has('w')) sp.set('w', '1600');
       if (sp.has('q')) sp.set('q', '90');
-    } else if (h.includes('guim.co.uk')) {
-      if (sp.has('width')) sp.set('width', '1200');
-      if (sp.has('quality')) sp.set('quality', '90');
     } else if (h.includes('insider.com') || h.includes('infomaker.io')) {
       if (sp.has('width')) sp.set('width', '1600');
       if (sp.has('q')) sp.set('q', '90');
@@ -493,22 +490,22 @@ export default function Home() {
                   </p>
                   <div className="space-y-5">
                     {col.articles.map((a, i) => (
-                      <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="block group">
+                      <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex gap-3 group items-start">
                         {a.urlToImage ? (
-                          <div className="h-28 bg-gray-100 rounded overflow-hidden mb-2">
+                          <div className="flex-shrink-0 w-20 h-20 bg-gray-100 rounded overflow-hidden">
                             <img
                               src={upgradeImageQuality(a.urlToImage)}
                               alt=""
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                              onError={e => { const p = (e.target as HTMLImageElement).parentElement; if (p) p.style.display = 'none'; }}
                             />
                           </div>
-                        ) : (
-                          <div className="h-28 bg-gray-100 rounded mb-2" />
-                        )}
-                        <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>
-                        <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>
-                        <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
+                        ) : null}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>
+                          <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>
+                          <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
+                        </div>
                       </a>
                     ))}
                   </div>

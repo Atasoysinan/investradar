@@ -54,6 +54,11 @@ function stripCDATA(s: string): string {
   return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim();
 }
 
+function decodeEntities(u: string | null): string | null {
+  if (!u) return u;
+  return u.replace(/&amp;/g, '&').replace(/&#38;/g, '&');
+}
+
 function stripHTML(s: string): string {
   return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
 }
@@ -87,7 +92,7 @@ async function fetchRSS(feedUrl: string, sourceName: string): Promise<Article[]>
     if (!title || !url) return [];
     const publishedAt = dateM ? parsePubDate(stripCDATA(dateM[1])) : new Date().toISOString();
     const description = descM ? stripHTML(stripCDATA(descM[1])).slice(0, 200) : '';
-    const urlToImage  = imgM ? imgM[1] : (item.match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || null;
+    const urlToImage  = decodeEntities(imgM ? imgM[1] : (item.match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || null);
     return [{ title, description, url, urlToImage, publishedAt, source: { name: sourceName }, isLive: checkIsLive(publishedAt) }];
   });
 }
