@@ -40,12 +40,12 @@ interface TopicNews {
 }
 
 const REGIONS = [
-  { label: '🇺🇸 USA', value: 'us' },
-  { label: '🇪🇺 Europe', value: 'europe' },
-  { label: '🌏 Asia', value: 'asia' },
-  { label: '🇫🇷 France', value: 'france' },
-  { label: '🇦🇪 UAE', value: 'uae' },
-  { label: '🇸🇦 Saudi Arabia', value: 'saudi' },
+  { label: 'USA', value: 'us' },
+  { label: 'Europe', value: 'europe' },
+  { label: 'Asia', value: 'asia' },
+  { label: 'France', value: 'france' },
+  { label: 'UAE', value: 'uae' },
+  { label: 'Saudi Arabia', value: 'saudi' },
 ];
 
 function timeAgo(dateStr: string) {
@@ -187,10 +187,10 @@ export default function Home() {
   const ordered = [...articles].sort((a: Article, b: Article) => ((b.urlToImage) ? 1 : 0) - ((a.urlToImage) ? 1 : 0));  const hero = ordered[0]; const featured = ordered.slice(1, 4); const compact = ordered.slice(4);
 
   const filterPill = (active: boolean) =>
-    `px-3 py-1 rounded text-sm font-medium transition-colors border ${
+    `relative pb-2 text-sm tracking-wide transition-colors border-b-2 -mb-px ${
       active
-        ? 'bg-gray-900 text-white border-gray-900'
-        : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400 hover:text-gray-900'
+        ? 'text-gray-900 font-semibold border-gray-900'
+        : 'text-gray-500 font-medium border-transparent hover:text-gray-900'
     }`;
 
   return (
@@ -228,10 +228,10 @@ export default function Home() {
 
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Region */}
-        <div className="flex flex-wrap gap-6 mb-6 pb-6 border-b border-gray-200">
+        <div className="mb-6">
           <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2 font-semibold">Region</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-[11px] uppercase tracking-widest font-semibold text-gray-400 mb-3">Region</p>
+            <div className="flex flex-wrap items-center gap-6 border-b border-gray-200">
               {REGIONS.map(r => (
                 <button
                   key={r.value}
