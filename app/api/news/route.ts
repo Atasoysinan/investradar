@@ -39,21 +39,22 @@ const RSS_FEEDS = [
 ];
 
 const FRANCE_FEEDS = [
-  { url: 'https://www.france24.com/en/france/rss', name: 'France 24' },
+  { url: 'https://www.france24.com/en/rss', name: 'France 24' },
   { url: 'https://www.france24.com/en/business/rss', name: 'France 24 Business' },
   { url: 'https://www.france24.com/en/europe/rss', name: 'France 24 Europe' },
   { url: 'https://www.rfi.fr/en/france/rss', name: 'RFI' },
 ];
 const UAE_FEEDS = [
-  { url: 'https://www.khaleejtimes.com/rss', name: 'Khaleej Times' },
-  { url: 'https://gulfnews.com/rss?generatorName=uae', name: 'Gulf News' },
-  { url: 'https://www.thenationalnews.com/arc/outboundfeeds/rss/category/uae/?outputType=xml', name: 'The National' },
   { url: 'https://www.thenationalnews.com/arc/outboundfeeds/rss/category/business/?outputType=xml', name: 'The National Business' },
+  { url: 'https://www.thenationalnews.com/arc/outboundfeeds/rss/category/world/?outputType=xml', name: 'The National World' },
+  { url: 'https://www.thenationalnews.com/arc/outboundfeeds/rss/category/business/economy/?outputType=xml', name: 'The National Economy' },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera' },
 ];
 const SAUDI_FEEDS = [
   { url: 'https://www.arabnews.com/rss.xml', name: 'Arab News' },
-  { url: 'https://saudigazette.com.sa/rssFeed/78', name: 'Saudi Gazette' },
-  { url: 'https://english.alarabiya.net/tools/rss', name: 'Al Arabiya' },
+  { url: 'https://www.arabnews.com/cat/1/rss.xml', name: 'Arab News Saudi' },
+  { url: 'https://www.arabnews.com/cat/3/rss.xml', name: 'Arab News Business' },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera' },
 ];
 
 interface Article {
