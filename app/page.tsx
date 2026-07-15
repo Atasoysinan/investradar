@@ -414,6 +414,58 @@ export default function Home() {
       {/* ── Below-the-fold enrichment sections ── */}
       <div className="max-w-6xl mx-auto px-4 pb-16 space-y-14 mt-6 border-t border-gray-200 pt-10">
 
+        {/* Global Economy */}
+        <section>
+          {globalNewsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="space-y-4">
+                  {[...Array(3)].map((_, j) => (
+                    <div key={j} className="animate-pulse">
+                      <div className="h-28 bg-gray-100 rounded mb-2" />
+                      <div className="h-3 bg-gray-100 rounded w-1/3 mb-1" />
+                      <div className="h-4 bg-gray-100 rounded w-full mb-1" />
+                      <div className="h-4 bg-gray-100 rounded w-3/4" />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : globalNews ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {([
+                { label: '🌎 Americas', articles: globalNews.americas },
+                { label: '🇪🇺 Europe',   articles: globalNews.europe },
+                { label: '🌏 Asia Pacific', articles: globalNews.asia },
+              ] as { label: string; articles: Article[] }[]).map(col => (
+                <div key={col.label}>
+                  <div className="space-y-5">
+                    {col.articles.map((a, i) => (
+                      <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex gap-3 group items-start">
+                        {a.urlToImage ? (
+                          <div className="flex-shrink-0 w-20 h-20 bg-gray-100 rounded overflow-hidden">
+                            <img
+                              src={upgradeImageQuality(a.urlToImage)}
+                              alt=""
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              onError={e => { const p = (e.target as HTMLImageElement).parentElement; if (p) p.style.display = 'none'; }}
+                            />
+                          </div>
+                        ) : null}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>
+                          <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>
+                          <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </section>
+
         {/* Sector Performance */}
         <section>
           <SectionHeader>📊 Sector Performance</SectionHeader>
@@ -452,62 +504,6 @@ export default function Home() {
                     <p className={`text-base font-bold ${s.changePercent >= 0 ? 'text-green-600' : 'text-red-500'}`}>
                       {Math.abs(s.changePercent).toFixed(2)}%
                     </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
-
-        {/* Global Economy */}
-        <section>
-          <SectionHeader>🌍 Global Economy</SectionHeader>
-          {globalNewsLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-4">
-                  {[...Array(3)].map((_, j) => (
-                    <div key={j} className="animate-pulse">
-                      <div className="h-28 bg-gray-100 rounded mb-2" />
-                      <div className="h-3 bg-gray-100 rounded w-1/3 mb-1" />
-                      <div className="h-4 bg-gray-100 rounded w-full mb-1" />
-                      <div className="h-4 bg-gray-100 rounded w-3/4" />
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          ) : globalNews ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {([
-                { label: '🌎 Americas', articles: globalNews.americas },
-                { label: '🇪🇺 Europe',   articles: globalNews.europe },
-                { label: '🌏 Asia Pacific', articles: globalNews.asia },
-              ] as { label: string; articles: Article[] }[]).map(col => (
-                <div key={col.label}>
-                  <p className="text-xs uppercase tracking-widest font-bold text-gray-500 border-b border-gray-200 pb-2 mb-3">
-                    {col.label}
-                  </p>
-                  <div className="space-y-5">
-                    {col.articles.map((a, i) => (
-                      <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex gap-3 group items-start">
-                        {a.urlToImage ? (
-                          <div className="flex-shrink-0 w-20 h-20 bg-gray-100 rounded overflow-hidden">
-                            <img
-                              src={upgradeImageQuality(a.urlToImage)}
-                              alt=""
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={e => { const p = (e.target as HTMLImageElement).parentElement; if (p) p.style.display = 'none'; }}
-                            />
-                          </div>
-                        ) : null}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>
-                          <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>
-                          <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
-                        </div>
-                      </a>
-                    ))}
                   </div>
                 </div>
               ))}
