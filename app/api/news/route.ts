@@ -9,6 +9,9 @@ const REGION_QUERIES: Record<string, string> = {
   us: 'United States business economy markets finance stocks Wall Street',
   europe: 'Europe European Union UK Germany France business economy markets finance ECB',
   asia: 'Asia China Japan India business economy markets finance stocks',
+  france: 'France French economy business markets CAC40 Paris ECB euro',
+  uae: 'UAE Dubai Abu Dhabi Gulf economy business markets DFM ADX',
+  saudi: 'Saudi Arabia Riyadh Gulf economy business markets Tadawul Aramco',
 };
 
 const EU_FEEDS = [
@@ -33,6 +36,25 @@ const RSS_FEEDS = [
   { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html',       name: 'CNBC' },
   { url: 'https://www.theguardian.com/world/rss', name: 'The Guardian' },
   { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'WSJ World' },
+];
+
+const FRANCE_FEEDS = [
+  { url: 'https://www.france24.com/en/rss', name: 'France 24' },
+  { url: 'https://www.france24.com/en/business/rss', name: 'France 24 Business' },
+  { url: 'https://www.france24.com/en/europe/rss', name: 'France 24 Europe' },
+  { url: 'https://www.rfi.fr/en/france/rss', name: 'RFI' },
+];
+const UAE_FEEDS = [
+  { url: 'https://www.thenationalnews.com/arc/outboundfeeds/rss/category/business/?outputType=xml', name: 'The National Business' },
+  { url: 'https://www.thenationalnews.com/arc/outboundfeeds/rss/category/world/?outputType=xml', name: 'The National World' },
+  { url: 'https://www.thenationalnews.com/arc/outboundfeeds/rss/category/business/economy/?outputType=xml', name: 'The National Economy' },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera' },
+];
+const SAUDI_FEEDS = [
+  { url: 'https://www.arabnews.com/rss.xml', name: 'Arab News' },
+  { url: 'https://www.arabnews.com/cat/1/rss.xml', name: 'Arab News Saudi' },
+  { url: 'https://www.arabnews.com/cat/3/rss.xml', name: 'Arab News Business' },
+  { url: 'https://www.aljazeera.com/xml/rss/all.xml', name: 'Al Jazeera' },
 ];
 
 interface Article {
@@ -145,7 +167,7 @@ export async function GET(request: NextRequest) {
     // Mediastack (skip if no key)
     MEDIASTACK_KEY ? fetch(`http://api.mediastack.com/v1/news?access_key=${MEDIASTACK_KEY}&languages=en&categories=business${q ? '&keywords=' + encodeURIComponent(q) : ''}&limit=25&sort=published_desc`, { next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No Mediastack key'),
     // RSS feeds
-    ...((region === 'europe' ? EU_FEEDS : region === 'asia' ? ASIA_FEEDS : RSS_FEEDS).map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[]))),
+    ...((region === 'europe' ? EU_FEEDS : region === 'asia' ? ASIA_FEEDS : region === 'france' ? FRANCE_FEEDS : region === 'uae' ? UAE_FEEDS : region === 'saudi' ? SAUDI_FEEDS : RSS_FEEDS).map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[]))),
   ]);
 
   const pool: Article[] = [];

@@ -43,6 +43,9 @@ const REGIONS = [
   { label: '🇺🇸 USA', value: 'us' },
   { label: '🇪🇺 Europe', value: 'europe' },
   { label: '🌏 Asia', value: 'asia' },
+  { label: '🇫🇷 France', value: 'france' },
+  { label: '🇦🇪 UAE', value: 'uae' },
+  { label: '🇸🇦 Saudi Arabia', value: 'saudi' },
 ];
 
 function timeAgo(dateStr: string) {
