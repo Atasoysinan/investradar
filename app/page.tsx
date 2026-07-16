@@ -315,43 +315,12 @@ export default function Home() {
           </div>
         )}
 
-        {/* Today's Briefs (AI single-pass synthesis) */}
-        {briefs.length > 0 && (
-          <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
-            <div className="px-4 py-2 bg-gray-900 text-white text-[11px] uppercase tracking-widest font-semibold flex items-center gap-2">
-              <span>The Brief</span>
-              <span className="text-gray-400 normal-case tracking-normal font-normal">· today&apos;s essentials</span>
-            </div>
-            <ol className="divide-y divide-gray-100">
-              {briefs.map((b, i) => (
-                <li key={i} className="px-4 py-2.5 flex gap-3 hover:bg-gray-50 transition-colors">
-                  <span className="text-xs font-bold text-gray-300 pt-0.5 w-4 flex-shrink-0">{i + 1}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 leading-snug">{b.headline}</p>
-                    <p className="text-xs text-gray-500 leading-snug mt-0.5">{b.summary}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-2">
-                      {b.sources.map((s2, j) => (
-                        <a
-                          key={j}
-                          href={s2.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[11px] font-medium text-blue-600 hover:underline"
-                        >
-                          {s2.name}
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-
         {/* Articles */}
         {!loading && !error && articles.length > 0 && (
           <div className="space-y-6">
+            {/* Hero + Latest rail (two-column top) */}
+            <div className="flex flex-col lg:flex-row gap-6 items-stretch">
+              <div className="lg:w-[62%] flex-shrink-0">
             {/* Hero */}
             {hero && (
               <a
@@ -388,6 +357,33 @@ export default function Home() {
                 </div>
               </a>
             )}
+              </div>
+              {briefs.length > 0 && (
+                <aside className="lg:w-[38%] flex-shrink-0 border border-gray-200 rounded-lg overflow-hidden flex flex-col">
+                  <div className="px-4 py-2 bg-gray-900 text-white text-[11px] uppercase tracking-widest font-semibold flex items-center gap-2">
+                    <span>Latest</span>
+                    <span className="text-gray-400 normal-case tracking-normal font-normal">· today&apos;s essentials</span>
+                  </div>
+                  <ol className="divide-y divide-gray-100 overflow-y-auto flex-1">
+                    {briefs
+                      .filter((b) => !hero || b.headline !== decodeHtml(hero.title))
+                      .slice(0, 7)
+                      .map((b, i) => (
+                        <li key={i} className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
+                          <p className="text-sm font-semibold text-gray-900 leading-snug">{b.headline}</p>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2">
+                            {b.sources.map((s2, j) => (
+                              <a key={j} href={s2.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-blue-600 hover:underline">
+                                {s2.name}
+                              </a>
+                            ))}
+                          </div>
+                        </li>
+                      ))}
+                  </ol>
+                </aside>
+              )}
+            </div>
 
             {/* Featured 3-column */}
             {featured.length > 0 && (
