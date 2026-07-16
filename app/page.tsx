@@ -135,6 +135,7 @@ export default function Home() {
   const [globalNews, setGlobalNews] = useState<GlobalNews | null>(null);
   const [globalNewsLoading, setGlobalNewsLoading] = useState(true);
   const [topicNews, setTopicNews] = useState<TopicNews | null>(null);
+  const [briefs, setBriefs] = useState<{ title: string; summary: string; sources: { name: string; url: string }[]; publishedAt: string }[]>([]);
   const [topicNewsLoading, setTopicNewsLoading] = useState(true);
 
   const fetchNews = useCallback(async () => {
@@ -169,12 +170,14 @@ export default function Home() {
       fetch('/api/sectors').then(r => r.json()),
       fetch('/api/global-news').then(r => r.json()),
       fetch('/api/topic-news').then(r => r.json()),
-    ]).then(([sResult, gResult, tResult]) => {
+      fetch('/api/briefs').then(r => r.json()),
+    ]).then(([sResult, gResult, tResult, bResult]) => {
       if (sResult.status === 'fulfilled' && Array.isArray(sResult.value)) {
         setSectorData(sResult.value as SectorItem[]);
       }
       if (gResult.status === 'fulfilled') setGlobalNews(gResult.value as GlobalNews);
       if (tResult.status === 'fulfilled') setTopicNews(tResult.value as TopicNews);
+      if (bResult.status === 'fulfilled' && Array.isArray((bResult.value as { briefs?: unknown[] }).briefs)) setBriefs((bResult.value as { briefs: { title: string; summary: string; sources: { name: string; url: string }[]; publishedAt: string }[] }).briefs);
       setSectorLoading(false);
       setGlobalNewsLoading(false);
       setTopicNewsLoading(false);
@@ -306,6 +309,37 @@ export default function Home() {
                     <div className="h-4 bg-gray-100 rounded w-3/4" />
                   </div>
                   <div className="h-3 bg-gray-100 rounded w-16 ml-4" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Today's Briefs (AI multi-source synthesis) */}
+        {briefs.length > 0 && (
+          <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="px-4 py-2 bg-gray-900 text-white text-[11px] uppercase tracking-widest font-semibold flex items-center gap-2">
+              <span>Today&apos;s Briefs</span>
+              <span className="text-gray-400 normal-case tracking-normal font-normal">· synthesized from multiple sources</span>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {briefs.map((b, i) => (
+                <div key={i} className="px-4 py-3">
+                  <p className="text-sm text-gray-800 leading-relaxed">{b.summary}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold">Sources:</span>
+                    {b.sources.map((s2, j) => (
+                      <a
+                        key={j}
+                        href={s2.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                      >
+                        {s2.name}
+                      </a>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
