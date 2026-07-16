@@ -39,13 +39,14 @@ interface TopicNews {
   geopolitics: Article[];
 }
 
-const REGIONS = [
-  { label: 'USA', value: 'us' },
-  { label: 'Europe', value: 'europe' },
-  { label: 'Asia', value: 'asia' },
-  { label: 'France', value: 'france' },
-  { label: 'UAE', value: 'uae' },
-  { label: 'Saudi Arabia', value: 'saudi' },
+const CATEGORIES = [
+  { label: 'Latest', value: 'latest', keywords: [] as string[] },
+  { label: 'Markets', value: 'markets', keywords: ['market','stock','shares','equit','index','indices','bond','yield','wall street','nasdaq','dow','s&p','ftse','trading','trader','rally','sell-off','selloff','bull','bear'] },
+  { label: 'Finance', value: 'finance', keywords: ['bank','finance','financial','loan','credit','fund','investor','investment','ipo','merger','acquisition','earnings','revenue','profit','dividend','hedge','private equity','venture','fintech','payment'] },
+  { label: 'Economics', value: 'economics', keywords: ['economy','economic','inflation','gdp','recession','unemployment','jobs','labor','fed','federal reserve','central bank','interest rate','rate hike','rate cut','tariff','trade','fiscal','monetary','deficit','growth'] },
+  { label: 'Industries', value: 'industries', keywords: ['industry','industrial','manufactur','energy','oil','gas','auto','airline','retail','pharma','mining','steel','aviation','shipping','logistics','construction','agricultur','commodit','factory','supply chain'] },
+  { label: 'Tech', value: 'tech', keywords: ['tech','technolog','ai','artificial intelligence','software','chip','semiconductor','apple','google','microsoft','amazon','meta','nvidia','startup','cloud','cyber','data','app','digital','internet','robot'] },
+  { label: 'Politics', value: 'politics', keywords: ['politic','government','election','president','congress','senate','parliament','policy','regulation','war','sanction','geopolit','diplomat','minister','netanyahu','trump','biden','china','russia','ukraine','israel','defense','military'] },
 ];
 
 function timeAgo(dateStr: string) {
@@ -124,7 +125,8 @@ export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [region, setRegion] = useState('us');
+  const [region] = useState('us');
+  const [category, setCategory] = useState('latest');
   const [searchQuery, setSearchQuery] = useState('');
   const [headerVisible, setHeaderVisible] = useState(true); const lastScrollY = useRef(0); useEffect(() => { const handleScroll = () => { const y = window.scrollY; setHeaderVisible(y < lastScrollY.current || y < 80); lastScrollY.current = y; }; window.addEventListener('scroll', handleScroll, { passive: true }); return () => window.removeEventListener('scroll', handleScroll); }, []);
 
@@ -184,7 +186,15 @@ export default function Home() {
     fetchNews();
   };
 
-  const ordered = [...articles].sort((a: Article, b: Article) => ((b.urlToImage) ? 1 : 0) - ((a.urlToImage) ? 1 : 0));  const hero = ordered[0]; const featured = ordered.slice(1, 4); const compact = ordered.slice(4);
+  const activeCat = CATEGORIES.find(c => c.value === category) || CATEGORIES[0];
+  const matchesCat = (a: Article) => {
+    if (activeCat.keywords.length === 0) return true;
+    const hay = ((a.title || '') + ' ' + (a.description || '')).toLowerCase();
+    return activeCat.keywords.some(k => hay.includes(k));
+  };
+  const catFiltered = articles.filter(matchesCat);
+  const displayArticles = catFiltered.length >= 4 ? catFiltered : articles;
+  const ordered = [...displayArticles].sort((a: Article, b: Article) => ((b.urlToImage) ? 1 : 0) - ((a.urlToImage) ? 1 : 0));  const hero = ordered[0]; const featured = ordered.slice(1, 4); const compact = ordered.slice(4);
 
   const filterPill = (active: boolean) =>
     `relative pb-2 text-sm tracking-wide transition-colors border-b-2 -mb-px ${
@@ -227,18 +237,17 @@ export default function Home() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Region */}
+        {/* Category */}
         <div className="mb-6">
           <div>
-            <p className="text-[11px] uppercase tracking-widest font-semibold text-gray-400 mb-3">Region</p>
             <div className="flex flex-wrap items-center gap-6 border-b border-gray-200">
-              {REGIONS.map(r => (
+              {CATEGORIES.map(c => (
                 <button
-                  key={r.value}
-                  onClick={() => { setRegion(r.value); setSearchQuery(''); }}
-                  className={filterPill(region === r.value && !searchQuery)}
+                  key={c.value}
+                  onClick={() => { setCategory(c.value); setSearchQuery(''); }}
+                  className={filterPill(category === c.value && !searchQuery)}
                 >
-                  {r.label}
+                  {c.label}
                 </button>
               ))}
             </div>
@@ -403,7 +412,7 @@ export default function Home() {
 
         {!loading && !error && articles.length === 0 && (
           <div className="text-center py-20 text-gray-400">
-            No articles found. Try a different category or region.
+            No articles found. Try a different category.
           </div>
         )}
 
