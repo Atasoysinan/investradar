@@ -217,7 +217,7 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#f5f6f7] text-gray-900">
       <header className={`bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm text-white">IR</div>
             <span className="text-xl font-bold text-gray-900">InvestRadar</span>
@@ -247,7 +247,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="max-w-[1400px] mx-auto px-6 py-6">
         {/* Category */}
         <div className="mb-6">
           <div>
@@ -469,7 +469,7 @@ export default function Home() {
       </div>
 
       {/* ── Below-the-fold enrichment sections ── */}
-      <div className="max-w-6xl mx-auto px-4 pb-16 space-y-14 mt-6 border-t border-gray-200 pt-10">
+      <div className="max-w-[1400px] mx-auto px-6 pb-16 space-y-14 mt-6 border-t border-gray-200 pt-10">
 
         {/* Global Economy */}
         <section>
@@ -602,7 +602,7 @@ export default function Home() {
 
       </div>
 
-      <section className="max-w-7xl mx-auto px-4 py-10 border-t border-gray-100">
+      <section className="max-w-[1400px] mx-auto px-6 py-10 border-t border-gray-100">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
@@ -618,7 +618,7 @@ export default function Home() {
         <MarketChatter />
       </section>
 
-      <div className="max-w-6xl mx-auto px-4 pb-12">
+      <div className="max-w-[1400px] mx-auto px-6 pb-12">
         <NewsletterSignup />
       </div>
 
