@@ -36,6 +36,20 @@ const RSS_FEEDS = [
   { url: 'https://www.cnbc.com/id/100003114/device/rss/rss.html',       name: 'CNBC' },
   { url: 'https://www.theguardian.com/world/rss', name: 'The Guardian' },
   { url: 'https://feeds.a.dj.com/rss/RSSWorldNews.xml', name: 'WSJ World' },
+  { url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories', name: 'MarketWatch' },
+  { url: 'https://finance.yahoo.com/news/rssindex', name: 'Yahoo Finance' },
+  { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258', name: 'CNBC Markets' },
+  { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664', name: 'CNBC Finance' },
+  { url: 'https://www.wired.com/feed/rss', name: 'Wired' },
+  { url: 'https://techcrunch.com/feed/', name: 'TechCrunch' },
+  { url: 'https://www.theverge.com/rss/index.xml', name: 'The Verge' },
+  { url: 'https://feeds.arstechnica.com/arstechnica/index', name: 'Ars Technica' },
+  { url: 'https://www.utilitydive.com/feeds/news/', name: 'Utility Dive' },
+  { url: 'https://www.supplychaindive.com/feeds/news/', name: 'Supply Chain Dive' },
+  { url: 'https://oilprice.com/rss/main', name: 'OilPrice' },
+  { url: 'https://feeds.bbci.co.uk/news/politics/rss.xml', name: 'BBC Politics' },
+  { url: 'https://thehill.com/news/feed/', name: 'The Hill' },
+  { url: 'https://rss.politico.com/politics-news.xml', name: 'Politico' },
 ];
 
 const FRANCE_FEEDS = [
