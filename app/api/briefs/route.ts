@@ -25,9 +25,7 @@ const CLUSTER_TERMS = [
 ];
 
 function baseUrl(): string {
-  const v = process.env.VERCEL_URL;
-  if (v) return `https://${v}`;
-  return 'http://localhost:3000';
+  return process.env.NEXT_PUBLIC_SITE_URL || 'https://www.investradar.live';
 }
 
 function cluster(articles: PoolArticle[]): { term: string; items: PoolArticle[] }[] {
@@ -78,15 +76,26 @@ async function summarize(items: PoolArticle[], apiKey: string): Promise<string |
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return NextResponse.json({ status: 'ok', briefs: [] });
+  const debug = new URL(request.url).searchParams.get('debug') === '1';
+  if (!apiKey) return NextResponse.json({ status: 'ok', briefs: [], keyPresent: false });
 
   try {
     const newsRes = await fetch(`${baseUrl()}/api/news?region=us`, { next: { revalidate: 300 } });
     const news = await newsRes.json();
     const articles: PoolArticle[] = (news.articles || []).filter((a: PoolArticle) => a.title && a.title !== '[Removed]');
     const clusters = cluster(articles);
+    let groqStatus = -1;
+    if (debug && clusters.length) {
+      const probe = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ model: 'llama-3.1-8b-instant', messages: [{ role: 'user', content: 'Reply with the word ok.' }], max_tokens: 5 }),
+      });
+      groqStatus = probe.status;
+    }
+    if (debug) return NextResponse.json({ status: 'debug', keyPresent: true, poolSize: articles.length, clusterCount: clusters.length, groqStatus });
 
     const briefs: Brief[] = [];
     for (const c of clusters) {
