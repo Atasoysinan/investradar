@@ -194,7 +194,15 @@ export default function Home() {
   };
   const catFiltered = articles.filter(matchesCat);
   const displayArticles = catFiltered.length >= 4 ? catFiltered : articles;
-  const ordered = [...displayArticles].sort((a: Article, b: Article) => ((b.urlToImage) ? 1 : 0) - ((a.urlToImage) ? 1 : 0));  const hero = ordered[0]; const featured = ordered.slice(1, 4); const compact = ordered.slice(4);
+  const imageScore = (a: Article): number => {
+    const img = a.urlToImage;
+    if (!img) return 0;
+    if (/guim\.co\.uk/i.test(img)) return 1;
+    if (/\/\d{2,3}x\d{2,3}\//.test(img) || /[?&](?:w|width)=\d{2,3}(?:&|$)/i.test(img)) return 1;
+    return 2;
+  };
+  const ordered = [...displayArticles].sort((a: Article, b: Article) => imageScore(b) - imageScore(a));
+  const hero = ordered[0]; const featured = ordered.slice(1, 4); const compact = ordered.slice(4);
 
   const filterPill = (active: boolean) =>
     `relative pb-2 text-sm tracking-wide transition-colors border-b-2 -mb-px ${
