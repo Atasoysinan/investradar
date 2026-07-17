@@ -427,10 +427,7 @@ export default function Home() {
           </div>
         )}
 
-          {/* Market Buzz moved into main column */}
-          <div className="mt-6">
-            <MarketBuzz />
-          </div>
+
         </div>{/* end left column */}
         <div className="w-full lg:w-72 flex-shrink-0">
           {briefs.length > 0 && (
@@ -458,6 +455,10 @@ export default function Home() {
               </ol>
             </aside>
           )}
+          {/* Market Buzz below Latest rail in right sidebar */}
+          <div className="mt-6">
+            <MarketBuzz />
+          </div>
         </div>
         </div>{/* end flex row */}
       </div>
