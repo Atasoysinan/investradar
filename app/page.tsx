@@ -318,9 +318,6 @@ export default function Home() {
         {/* Articles */}
         {!loading && !error && articles.length > 0 && (
           <div className="space-y-6">
-            {/* Hero + Latest rail (two-column top) */}
-            <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-              <div className="lg:w-[62%] flex-shrink-0">
             {/* Hero */}
             {hero && (
               <a
@@ -357,33 +354,6 @@ export default function Home() {
                 </div>
               </a>
             )}
-              </div>
-              {briefs.length > 0 && (
-                <aside className="lg:w-[38%] flex-shrink-0 border border-gray-200 rounded-lg overflow-hidden flex flex-col">
-                  <div className="px-4 py-2 bg-gray-900 text-white text-[11px] uppercase tracking-widest font-semibold flex items-center gap-2">
-                    <span>Latest</span>
-                    <span className="text-gray-400 normal-case tracking-normal font-normal">· today&apos;s essentials</span>
-                  </div>
-                  <ol className="divide-y divide-gray-100 overflow-y-auto flex-1">
-                    {briefs
-                      .filter((b) => !hero || b.headline !== decodeHtml(hero.title))
-                      .slice(0, 7)
-                      .map((b, i) => (
-                        <li key={i} className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
-                          <p className="text-sm font-semibold text-gray-900 leading-snug">{b.headline}</p>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2">
-                            {b.sources.map((s2, j) => (
-                              <a key={j} href={s2.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-blue-600 hover:underline">
-                                {s2.name}
-                              </a>
-                            ))}
-                          </div>
-                        </li>
-                      ))}
-                  </ol>
-                </aside>
-              )}
-            </div>
 
             {/* Featured 3-column */}
             {featured.length > 0 && (
@@ -457,9 +427,37 @@ export default function Home() {
           </div>
         )}
 
+          {/* Market Buzz moved into main column */}
+          <div className="mt-6">
+            <MarketBuzz />
+          </div>
         </div>{/* end left column */}
         <div className="w-full lg:w-72 flex-shrink-0">
-          <MarketBuzz />
+          {briefs.length > 0 && (
+            <aside className="w-full border border-gray-200 rounded-lg overflow-hidden flex flex-col lg:sticky lg:top-24 max-h-[calc(100vh-7rem)]">
+              <div className="px-4 py-2 bg-gray-900 text-white text-[11px] uppercase tracking-widest font-semibold flex items-center gap-2">
+                <span>Latest</span>
+                <span className="text-gray-400 normal-case tracking-normal font-normal">· today&apos;s essentials</span>
+              </div>
+              <ol className="divide-y divide-gray-100 overflow-y-auto flex-1">
+                {briefs
+                  .filter((b) => !hero || b.headline !== decodeHtml(hero.title))
+                  .slice(0, 7)
+                  .map((b, i) => (
+                    <li key={i} className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
+                      <p className="text-sm font-semibold text-gray-900 leading-snug">{b.headline}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-2">
+                        {b.sources.map((s2, j) => (
+                          <a key={j} href={s2.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-blue-600 hover:underline">
+                            {s2.name}
+                          </a>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+              </ol>
+            </aside>
+          )}
         </div>
         </div>{/* end flex row */}
       </div>
