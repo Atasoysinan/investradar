@@ -431,7 +431,7 @@ export default function Home() {
         </div>{/* end left column */}
         <div className="w-full lg:w-72 flex-shrink-0">
           {briefs.length > 0 && (
-            <aside className="w-full border border-gray-200 rounded-lg overflow-hidden flex flex-col lg:sticky lg:top-24 max-h-[calc(100vh-7rem)]">
+            <aside className="w-full border border-gray-200 rounded-lg overflow-hidden flex flex-col">
               <div className="px-4 py-2 bg-gray-900 text-white text-[11px] uppercase tracking-widest font-semibold flex items-center gap-2">
                 <span>Latest</span>
                 <span className="text-gray-400 normal-case tracking-normal font-normal">· today&apos;s essentials</span>
