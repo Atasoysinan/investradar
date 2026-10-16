@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 
+
 export const revalidate = 300;
+
 
 interface PoolArticle {
   title: string;
@@ -10,15 +12,18 @@ interface PoolArticle {
   source: { name: string };
 }
 
+
 interface Brief {
   headline: string;
   summary: string;
   sources: { name: string; url: string }[];
 }
 
+
 function baseUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL || 'https://www.investradar.live';
 }
+
 
 function extractJson(text: string): unknown | null {
   const start = text.search(/[[{]/);
@@ -32,7 +37,15 @@ function extractJson(text: string): unknown | null {
   return null;
 }
 
+
 export async function GET(request: Request) {
+  // Preview must not fall back to the production news API or use its AI quota.
+  if (process.env.VERCEL_ENV !== 'production') {
+    return NextResponse.json(
+      { status: 'unavailable', briefs: [], reason: 'AI briefs are disabled in this test environment until an isolated news source is configured.' },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
   const apiKey = process.env.GROQ_API_KEY;
   const debug = new URL(request.url).searchParams.get('debug') === '1';
   if (!apiKey) return NextResponse.json({ status: 'ok', briefs: [], keyPresent: false });
