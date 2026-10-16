@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import StockPills from '@/components/StockPills';
 import NewsletterSignup from '@/components/NewsletterSignup';
@@ -318,12 +319,15 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="flex flex-col sm:flex-row bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group"
               >
-                <div className="w-full sm:w-3/5 flex-shrink-0 h-56 sm:h-80">
-                  <img
+                <div className="relative w-full sm:w-3/5 flex-shrink-0 h-56 sm:h-80">
+                  <Image
                     src={getArticleImage(hero)}
                     alt={decodeHtml(hero.title)}
-                    className="w-full h-full object-cover"
-                    onError={e => { (e.target as HTMLImageElement).src = DEFAULT_FALLBACK; }}
+                    fill
+                    priority
+                    sizes="(max-width: 639px) 100vw, (max-width: 1400px) 60vw, 840px"
+                    className="object-cover"
+                    onError={e => { e.currentTarget.src = DEFAULT_FALLBACK; }}
                   />
                 </div>
                 <div className="flex flex-col justify-center p-6 sm:p-8 flex-1">
@@ -358,12 +362,14 @@ export default function Home() {
                     rel="noopener noreferrer"
                     className="flex-shrink-0 w-[85%] sm:w-[60%] md:w-auto snap-start bg-white border border-gray-100 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group flex flex-col"
                   >
-                    <div className="overflow-hidden bg-gray-100" style={{ height: '180px' }}>
-                      <img
+                    <div className="relative overflow-hidden bg-gray-100" style={{ height: '180px' }}>
+                      <Image
                         src={getArticleImage(article)}
                         alt={decodeHtml(article.title)}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={e => { (e.target as HTMLImageElement).src = DEFAULT_FALLBACK; }}
+                        fill
+                        sizes="(max-width: 767px) 85vw, (max-width: 1400px) 28vw, 390px"
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={e => { e.currentTarget.src = DEFAULT_FALLBACK; }}
                       />
                     </div>
                     <div className="p-4 flex flex-col flex-1">
@@ -487,12 +493,14 @@ export default function Home() {
                     {col.articles.map((a, i) => (
                       <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex gap-3 group items-start">
                         {a.urlToImage ? (
-                          <div className="flex-shrink-0 w-20 h-20 bg-gray-100 rounded overflow-hidden">
-                            <img
+                          <div className="relative flex-shrink-0 w-20 h-20 bg-gray-100 rounded overflow-hidden">
+                            <Image
                               src={upgradeImageQuality(a.urlToImage)}
                               alt=""
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={e => { const p = (e.target as HTMLImageElement).parentElement; if (p) p.style.display = 'none'; }}
+                              fill
+                              sizes="80px"
+                              className="object-cover group-hover:scale-105 transition-transform duration-300"
+                              onError={e => { const p = e.currentTarget.parentElement; if (p) p.style.display = 'none'; }}
                             />
                           </div>
                         ) : null}

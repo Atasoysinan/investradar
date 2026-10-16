@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import StockNewsModal from '@/components/StockNewsModal';
@@ -319,7 +320,7 @@ export default function MarketsPage() {
                         <td className="py-3 px-4 text-right text-gray-400 text-sm font-medium">#{i + 1}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
-                            <img src={coin.image} alt={coin.name} className="w-6 h-6 rounded-full flex-shrink-0" />
+                            <Image src={coin.image} alt={coin.name} width={24} height={24} className="rounded-full flex-shrink-0" />
                             <span className="font-bold text-gray-900 text-sm">{coin.name}</span>
                             <span className="text-xs text-gray-400 uppercase">{coin.symbol}</span>
                           </div>
