@@ -17,7 +17,12 @@ const SECTORS = [
 ];
 
 export async function GET() {
-  if (!KEY) return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+  if (!KEY) {
+    return NextResponse.json(
+      { error: 'Market data service is not configured.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
 
   const results = await Promise.allSettled(
     SECTORS.map(async ({ ticker, sectorName }) => {

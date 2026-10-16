@@ -33,12 +33,6 @@ interface GlobalNews {
   asia: Article[];
 }
 
-interface TopicNews {
-  markets: Article[];
-  tech: Article[];
-  geopolitics: Article[];
-}
-
 const CATEGORIES = [
   { label: 'Latest', value: 'latest', keywords: [] as string[] },
   { label: 'Markets', value: 'markets', keywords: ['market','stock','shares','equit','index','indices','bond','yield','wall street','nasdaq','dow','s&p','ftse','trading','trader','rally','sell-off','selloff','bull','bear'] },
@@ -134,9 +128,7 @@ export default function Home() {
   const [sectorLoading, setSectorLoading] = useState(true);
   const [globalNews, setGlobalNews] = useState<GlobalNews | null>(null);
   const [globalNewsLoading, setGlobalNewsLoading] = useState(true);
-  const [topicNews, setTopicNews] = useState<TopicNews | null>(null);
   const [briefs, setBriefs] = useState<{ headline: string; summary: string; sources: { name: string; url: string }[] }[]>([]);
-  const [topicNewsLoading, setTopicNewsLoading] = useState(true);
 
   const fetchNews = useCallback(async () => {
     setLoading(true);
@@ -160,27 +152,27 @@ export default function Home() {
   }, [region, searchQuery]);
 
   useEffect(() => {
-    fetchNews();
+    const initialLoad = window.setTimeout(() => { void fetchNews(); }, 0);
     const id = setInterval(fetchNews, 300000);
-    return () => clearInterval(id);
+    return () => {
+      window.clearTimeout(initialLoad);
+      clearInterval(id);
+    };
   }, [fetchNews]);
 
   useEffect(() => {
     Promise.allSettled([
       fetch('/api/sectors').then(r => r.json()),
       fetch('/api/global-news').then(r => r.json()),
-      fetch('/api/topic-news').then(r => r.json()),
       fetch('/api/briefs').then(r => r.json()),
-    ]).then(([sResult, gResult, tResult, bResult]) => {
+    ]).then(([sResult, gResult, bResult]) => {
       if (sResult.status === 'fulfilled' && Array.isArray(sResult.value)) {
         setSectorData(sResult.value as SectorItem[]);
       }
       if (gResult.status === 'fulfilled') setGlobalNews(gResult.value as GlobalNews);
-      if (tResult.status === 'fulfilled') setTopicNews(tResult.value as TopicNews);
       if (bResult.status === 'fulfilled' && Array.isArray((bResult.value as { briefs?: unknown[] }).briefs)) setBriefs((bResult.value as { briefs: { headline: string; summary: string; sources: { name: string; url: string }[] }[] }).briefs);
       setSectorLoading(false);
       setGlobalNewsLoading(false);
-      setTopicNewsLoading(false);
     });
   }, []);
 

@@ -22,9 +22,12 @@ export default function BreakingNewsBanner() {
   }
 
   useEffect(() => {
-    fetchBreaking();
+    const initialLoad = window.setTimeout(() => { void fetchBreaking(); }, 0);
     const interval = setInterval(fetchBreaking, 5 * 60 * 1000);
-    return () => clearInterval(interval);
+    return () => {
+      window.clearTimeout(initialLoad);
+      clearInterval(interval);
+    };
   }, []);
 
   if (dismissed || articles.length === 0) return null;

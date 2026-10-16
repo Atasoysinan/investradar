@@ -13,12 +13,16 @@ export async function POST(req: NextRequest) {
       { status: 403, headers: { 'Cache-Control': 'no-store' } },
     );
   }
-  const resend = new Resend(process.env.RESEND_API_KEY);
   const { email } = await req.json();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
   }
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: 'Newsletter service is temporarily unavailable.' }, { status: 503 });
+  }
   try {
+    const resend = new Resend(apiKey);
     await resend.contacts.create({ email, audienceId: AUDIENCE_ID, unsubscribed: false });
     await resend.emails.send({
       from: 'InvestRadar <onboarding@resend.dev>',
@@ -32,4 +36,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to subscribe.' }, { status: 500 });
   }
 }
-
