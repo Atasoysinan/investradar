@@ -53,8 +53,8 @@ export default function MarketChatter() {
   if (tickers.length === 0) return null;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-      {tickers.map(ticker => (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {tickers.slice(0, 3).map(ticker => (
         <div key={ticker.symbol}>
           <div className="border-b-2 border-black pb-2 mb-3">
             <div className="flex items-center justify-between">
@@ -75,7 +75,7 @@ export default function MarketChatter() {
             </div>
           </div>
           <div className="space-y-2">
-            {ticker.messages.map((msg, i) => (
+            {ticker.messages.slice(0, 1).map((msg, i) => (
               <div key={i} className="bg-white border border-gray-100 rounded p-3 hover:border-gray-300 transition-colors overflow-hidden">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-semibold text-gray-700">@{msg.user.username}</span>

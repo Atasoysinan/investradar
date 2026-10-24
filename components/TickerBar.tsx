@@ -47,7 +47,7 @@ export default function TickerBar() {
             <button
               key={i}
               onClick={() => setSelected(q.symbol)}
-              className="inline-flex items-center gap-2 text-xs hover:opacity-75 transition-opacity flex-shrink-0"
+              className={`${i > 2 ? 'hidden md:inline-flex' : 'inline-flex'} items-center gap-2 text-xs hover:opacity-75 transition-opacity flex-shrink-0`}
             >
               <span className="font-semibold text-white">{q.symbol}</span>
               <span className="text-gray-300">${q.c?.toFixed(2)}</span>

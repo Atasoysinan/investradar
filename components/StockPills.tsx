@@ -16,7 +16,10 @@ export default function StockPills({ headline, description }: { headline: string
     if (tickers.length === 0) { setLoading(false); return; }
     fetch(`/api/market?type=multi-quote&symbols=${tickers.join(',')}`)
       .then(r => r.json())
-      .then(data => { setQuotes(data); setLoading(false); })
+      .then(data => {
+        setQuotes(Array.isArray(data) ? data : []);
+        setLoading(false);
+      })
       .catch(() => setLoading(false));
   }, [headline]);
 

@@ -40,13 +40,10 @@ interface TopicNews {
 }
 
 const CATEGORIES = [
-  { label: 'Latest', value: 'latest', keywords: [] as string[] },
+  { label: 'Briefing', value: 'briefing', keywords: [] as string[] },
   { label: 'Markets', value: 'markets', keywords: ['market','stock','shares','equit','index','indices','bond','yield','wall street','nasdaq','dow','s&p','ftse','trading','trader','rally','sell-off','selloff','bull','bear'] },
-  { label: 'Finance', value: 'finance', keywords: ['bank','finance','financial','loan','credit','fund','investor','investment','ipo','merger','acquisition','earnings','revenue','profit','dividend','hedge','private equity','venture','fintech','payment'] },
-  { label: 'Economics', value: 'economics', keywords: ['economy','economic','inflation','gdp','recession','unemployment','jobs','labor','fed','federal reserve','central bank','interest rate','rate hike','rate cut','tariff','trade','fiscal','monetary','deficit','growth'] },
-  { label: 'Industries', value: 'industries', keywords: ['industry','industrial','manufactur','energy','oil','gas','auto','airline','retail','pharma','mining','steel','aviation','shipping','logistics','construction','agricultur','commodit','factory','supply chain'] },
-  { label: 'Tech', value: 'tech', keywords: ['tech','technolog','ai','artificial intelligence','software','chip','semiconductor','apple','google','microsoft','amazon','meta','nvidia','startup','cloud','cyber','data','app','digital','internet','robot'] },
-  { label: 'Politics', value: 'politics', keywords: ['politic','government','election','president','congress','senate','parliament','policy','regulation','war','sanction','geopolit','diplomat','minister','netanyahu','trump','biden','china','russia','ukraine','israel','defense','military'] },
+  { label: 'AI & Tech', value: 'ai-tech', keywords: ['tech','technolog','ai','artificial intelligence','software','chip','semiconductor','apple','google','microsoft','amazon','meta','nvidia','startup','cloud','cyber','data center','robot'] },
+  { label: 'Geopolitics', value: 'geopolitics', keywords: ['politic','government','election','president','congress','senate','parliament','policy','regulation','war','sanction','geopolit','diplomat','minister','china','russia','ukraine','israel','defense','military','trade'] },
 ];
 
 function timeAgo(dateStr: string) {
@@ -108,6 +105,8 @@ function getArticleImage(article: { urlToImage?: string | null; image?: string |
 
 function decodeHtml(str: string): string {
   return str
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, decimal: string) => String.fromCodePoint(parseInt(decimal, 10)))
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
@@ -116,17 +115,25 @@ function decodeHtml(str: string): string {
 }
 
 const SectionHeader = ({ children }: { children: React.ReactNode }) => (
-  <div className="border-b border-gray-200 pb-3 mb-6">
-    <h2 className="text-xs font-bold text-gray-900 uppercase tracking-widest">{children}</h2>
+  <div className="border-b border-[#d9d7d2] pb-3 mb-6">
+    <h2 className="text-sm font-semibold text-[#171717] tracking-tight">{children}</h2>
   </div>
 );
+
+function whyItMatters(article: Article): string {
+  const text = `${article.title} ${article.description || ''}`.toLowerCase();
+  if (/(ai|artificial intelligence|chip|semiconductor|data center)/.test(text)) return 'Why it matters: AI spending is reshaping earnings, infrastructure demand and market leadership.';
+  if (/(rate|inflation|fed|central bank|yield)/.test(text)) return 'Why it matters: Changes in rates can quickly reprice equities, currencies and borrowing costs.';
+  if (/(war|sanction|trade|tariff|geopolit)/.test(text)) return 'Why it matters: Policy and geopolitical shifts can alter supply chains, energy prices and risk appetite.';
+  return 'Why it matters: This development may affect investor sentiment and the next market session.';
+}
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [region] = useState('us');
-  const [category, setCategory] = useState('latest');
+  const [category, setCategory] = useState('briefing');
   const [searchQuery, setSearchQuery] = useState('');
   const [headerVisible, setHeaderVisible] = useState(true); const lastScrollY = useRef(0); useEffect(() => { const handleScroll = () => { const y = window.scrollY; setHeaderVisible(y < lastScrollY.current || y < 80); lastScrollY.current = y; }; window.addEventListener('scroll', handleScroll, { passive: true }); return () => window.removeEventListener('scroll', handleScroll); }, []);
 
@@ -208,63 +215,55 @@ export default function Home() {
   const hero = ordered[0]; const featured = ordered.slice(1, 4); const compact = ordered.slice(4);
 
   const filterPill = (active: boolean) =>
-    `relative pb-2 text-sm tracking-wide transition-colors border-b-2 -mb-px ${
+    `relative py-4 text-sm transition-colors border-b-2 -mb-px whitespace-nowrap ${
       active
-        ? 'text-gray-900 font-semibold border-gray-900'
-        : 'text-gray-500 font-medium border-transparent hover:text-gray-900'
+        ? 'text-[#171717] font-semibold border-blue-600'
+        : 'text-[#686866] font-medium border-transparent hover:text-[#171717]'
     }`;
 
   return (
-    <div className="min-h-screen bg-[#f5f6f7] text-gray-900">
-      <header className={`bg-white border-b border-gray-200 sticky top-0 z-50 shadow-sm transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-        <div className="max-w-[1400px] mx-auto px-6 py-3 flex items-center justify-between gap-4">
+    <div className="min-h-screen bg-[#f4f2ee] text-[#171717]">
+      <header className={`bg-[#fbfaf7]/95 backdrop-blur-md border-b border-[#d9d7d2] sticky top-0 z-50 transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 flex items-center justify-between gap-4 min-h-16">
           <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm text-white">IR</div>
-            <span className="text-xl font-bold text-gray-900">InvestRadar</span>
+            <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center font-bold text-sm text-white">IR</div>
+            <span className="text-xl font-bold text-[#171717]">Invest<span className="text-blue-600">Radar</span></span>
             <span className="text-xs text-gray-400 hidden sm:block">Financial & Geopolitical Intelligence</span>
           </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/markets" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block">
-              Markets
-            </Link>
-            <Link href="/videos" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium hidden sm:block">
-              Videos
-            </Link>
+          <nav className="hidden lg:flex items-center gap-7 self-stretch" aria-label="Primary navigation">
+            {CATEGORIES.map(c => (
+              <button key={c.value} onClick={() => { setCategory(c.value); setSearchQuery(''); }} className={filterPill(category === c.value && !searchQuery)}>
+                {c.label}
+              </button>
+            ))}
+          </nav>
+          <div className="flex items-center gap-3">
             <form onSubmit={handleSearch} className="hidden sm:flex gap-2">
               <input
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 placeholder="Search markets, companies, topics..."
-                className="bg-gray-50 border border-gray-300 rounded-lg px-4 py-2 text-sm w-48 sm:w-64 focus:outline-none focus:border-blue-500 text-gray-900 placeholder-gray-400"
+                className="bg-white border border-[#d9d7d2] rounded-md px-4 py-2 text-sm w-48 xl:w-64 focus:outline-none focus:border-blue-500 text-gray-900 placeholder-gray-400"
               />
-              <button type="submit" className="bg-gray-900 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+              <button type="submit" className="bg-[#171717] hover:bg-black text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
                 Search
               </button>
             </form>
+            <button type="button" aria-label="Open watchlist" title="Watchlist" className="hidden sm:grid place-items-center w-9 h-9 border border-[#d9d7d2] bg-white rounded-md text-xl hover:border-blue-500 hover:text-blue-600 transition-colors">☆</button>
             <Header />
           </div>
         </div>
+        <nav className="lg:hidden flex overflow-x-auto gap-6 px-4 sm:px-6 border-t border-[#ebe9e4]" aria-label="Primary navigation">
+          {CATEGORIES.map(c => (
+            <button key={c.value} onClick={() => { setCategory(c.value); setSearchQuery(''); }} className={filterPill(category === c.value && !searchQuery)}>
+              {c.label}
+            </button>
+          ))}
+        </nav>
       </header>
 
-      <div className="max-w-[1400px] mx-auto px-6 py-6">
-        {/* Category */}
-        <div className="mb-6">
-          <div>
-            <div className="flex flex-wrap items-center gap-6 border-b border-gray-200">
-              {CATEGORIES.map(c => (
-                <button
-                  key={c.value}
-                  onClick={() => { setCategory(c.value); setSearchQuery(''); }}
-                  className={filterPill(category === c.value && !searchQuery)}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8">
         <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-1 min-w-0 w-full max-w-full">
 
@@ -324,7 +323,7 @@ export default function Home() {
                 href={hero.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex flex-col sm:flex-row bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group"
+                className="flex flex-col sm:flex-row bg-white border border-[#d9d7d2] rounded-xl overflow-hidden hover:border-gray-400 transition-colors group"
               >
                 <div className="w-full sm:w-3/5 flex-shrink-0 h-56 sm:h-80">
                   <img
@@ -339,9 +338,9 @@ export default function Home() {
                     <span className={`max-w-[120px] truncate text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
                       {hero.source?.name || 'Unknown'}
                     </span>
-                    {hero.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
+                    {hero.isLive && <span className="text-[10px] font-bold text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5">LIVE</span>}
                   </span>
-                  <h1 className="text-2xl font-bold text-gray-900 leading-snug mb-3 group-hover:text-blue-700 transition-colors">
+                  <h1 className="font-serif text-3xl font-semibold text-gray-950 leading-[1.08] mb-3 group-hover:text-blue-700 transition-colors">
                     {decodeHtml(hero.title)}
                   </h1>
                   {hero.description && (
@@ -349,6 +348,7 @@ export default function Home() {
                       {decodeHtml(hero.description)}
                     </p>
                   )}
+                  <p className="text-xs leading-relaxed text-blue-800 bg-blue-50 border-l-2 border-blue-600 px-3 py-2 mb-3">{whyItMatters(hero)}</p>
                   <StockPills headline={hero.title} description={hero.description || ''} />
                   <span className="text-xs text-gray-400 mt-2">{timeAgo(hero.publishedAt)}</span>
                 </div>
@@ -364,7 +364,7 @@ export default function Home() {
                     href={article.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-shrink-0 w-[85%] sm:w-[60%] md:w-auto snap-start bg-white border border-gray-100 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-shadow group flex flex-col"
+                    className="flex-shrink-0 w-[85%] sm:w-[60%] md:w-auto snap-start bg-white border border-[#d9d7d2] rounded-xl overflow-hidden hover:border-gray-400 transition-colors group flex flex-col"
                   >
                     <div className="overflow-hidden bg-gray-100" style={{ height: '180px' }}>
                       <img
@@ -379,7 +379,7 @@ export default function Home() {
                         <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">
                           {article.source?.name || 'Unknown'}
                         </span>
-                        {article.isLive && <span className="text-xs font-bold text-green-600">🟢 LIVE</span>}
+                        {article.isLive && <span className="text-[10px] font-bold text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5">LIVE</span>}
                       </span>
                       <h2 className="font-semibold text-gray-900 text-base leading-snug group-hover:text-blue-700 transition-colors line-clamp-3">
                         {decodeHtml(article.title)}
@@ -406,7 +406,7 @@ export default function Home() {
                         <span className={`flex-shrink-0 max-w-[120px] truncate text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(article.source?.name)}`}>
                           {article.source?.name || 'Unknown'}
                         </span>
-                        {article.isLive && <span className="flex-shrink-0 text-xs font-bold text-green-600">🟢 LIVE</span>}
+                        {article.isLive && <span className="flex-shrink-0 text-[10px] font-bold text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5">LIVE</span>}
                         <span className="font-medium text-gray-900 text-sm line-clamp-1 group-hover:text-blue-700 transition-colors">
                           {decodeHtml(article.title)}
                         </span>
@@ -433,13 +433,13 @@ export default function Home() {
           {briefs.length > 0 && (
             <aside className="w-full border border-gray-200 rounded-lg overflow-hidden flex flex-col">
               <div className="px-4 py-2 bg-gray-900 text-white text-[11px] uppercase tracking-widest font-semibold flex items-center gap-2">
-                <span>Latest</span>
-                <span className="text-gray-400 normal-case tracking-normal font-normal">· today&apos;s essentials</span>
+                <span>Today in 5 Minutes</span>
+                <span className="text-gray-400 normal-case tracking-normal font-normal">· essential briefing</span>
               </div>
               <ol className="divide-y divide-gray-100 overflow-y-auto flex-1">
                 {briefs
                   .filter((b) => !hero || b.headline !== decodeHtml(hero.title))
-                  .slice(0, 7)
+                  .slice(0, 5)
                   .map((b, i) => (
                     <li key={i} className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
                       <p className="text-sm font-semibold text-gray-900 leading-snug">{b.headline}</p>
@@ -486,9 +486,9 @@ export default function Home() {
           ) : globalNews ? (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {([
-                { label: '🌎 Americas', articles: globalNews.americas },
-                { label: '🇪🇺 Europe',   articles: globalNews.europe },
-                { label: '🌏 Asia Pacific', articles: globalNews.asia },
+                { label: 'Americas', articles: globalNews.americas },
+                { label: 'Europe',   articles: globalNews.europe },
+                { label: 'Asia Pacific', articles: globalNews.asia },
               ] as { label: string; articles: Article[] }[]).map(col => (
                 <div key={col.label}>
                   <div className="space-y-5">
@@ -520,7 +520,7 @@ export default function Home() {
 
         {/* Sector Performance */}
         <section>
-          <SectionHeader>📊 Sector Performance</SectionHeader>
+          <SectionHeader>Sector Performance</SectionHeader>
           {sectorLoading ? (
             <div className="flex gap-4 overflow-x-auto pb-3">
               {[...Array(10)].map((_, i) => (
@@ -565,7 +565,7 @@ export default function Home() {
 
         {/* Market Videos */}
         <section>
-          <SectionHeader>🎬 Market Videos</SectionHeader>
+          <SectionHeader>Market Videos</SectionHeader>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {[
               { name: 'CNBC', url: 'https://www.youtube.com/@CNBC', color: '#CC0000', desc: 'Breaking business news' },
@@ -601,7 +601,7 @@ export default function Home() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
-              💬 Social Pulse
+              Social Pulse
             </h2>
             <p className="text-xs text-gray-400">Real-time market sentiment from Stocktwits</p>
           </div>
