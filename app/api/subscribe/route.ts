@@ -1,15 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
+
 const AUDIENCE_ID = '2d6a1c17-e733-446e-a3d8-8cae269432b6';
 
+
 export async function POST(req: NextRequest) {
-  const resend = new Resend(process.env.RESEND_API_KEY);
+  // Use the server-provided deployment environment, never request input or NODE_ENV.
+  if (process.env.VERCEL_ENV !== 'production') {
+    return NextResponse.json(
+      { error: 'Subscriptions are disabled in this test environment. No email was sent and no subscription was saved.' },
+      { status: 403, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
   const { email } = await req.json();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
   }
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    return NextResponse.json({ error: 'Newsletter service is temporarily unavailable.' }, { status: 503 });
+  }
   try {
+    const resend = new Resend(apiKey);
     await resend.contacts.create({ email, audienceId: AUDIENCE_ID, unsubscribed: false });
     await resend.emails.send({
       from: 'InvestRadar <onboarding@resend.dev>',

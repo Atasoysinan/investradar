@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import StockNewsModal from '@/components/StockNewsModal';
@@ -122,7 +123,7 @@ export default function MarketsPage() {
   const [etfLoading, setEtfLoading] = useState(false);
   const [etfFilter, setEtfFilter] = useState('All');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch(`/api/market?symbols=${WATCHLIST.map(w => w.symbol).join(',')}`);
@@ -132,49 +133,67 @@ export default function MarketsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const initialLoad = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(initialLoad);
+  }, [load]);
 
   useEffect(() => {
     if (activeTab !== 'S&P 500' && activeTab !== 'NASDAQ') return;
-    setIndexLoading(true);
-    setIndexData([]);
-    const tabParam = activeTab === 'S&P 500' ? 'sp500' : 'nasdaq';
-    fetch(`/api/market?type=index-quotes&tab=${tabParam}`)
-      .then(r => r.json())
-      .then(data => { setIndexData(data); setIndexLoading(false); })
-      .catch(() => setIndexLoading(false));
+    const request = window.setTimeout(() => {
+      setIndexLoading(true);
+      setIndexData([]);
+      const tabParam = activeTab === 'S&P 500' ? 'sp500' : 'nasdaq';
+      fetch(`/api/market?type=index-quotes&tab=${tabParam}`)
+        .then(r => r.json())
+        .then(data => {
+          setIndexData(Array.isArray(data) ? data : []);
+          setIndexLoading(false);
+        })
+        .catch(() => setIndexLoading(false));
+    }, 0);
+    return () => window.clearTimeout(request);
   }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== 'Crypto') return;
-    setCryptoLoading(true);
-    setCryptoData([]);
-    fetch('/api/crypto')
-      .then(r => r.json())
-      .then(data => { setCryptoData(Array.isArray(data) ? data : []); setCryptoLoading(false); })
-      .catch(() => setCryptoLoading(false));
+    const request = window.setTimeout(() => {
+      setCryptoLoading(true);
+      setCryptoData([]);
+      fetch('/api/crypto')
+        .then(r => r.json())
+        .then(data => { setCryptoData(Array.isArray(data) ? data : []); setCryptoLoading(false); })
+        .catch(() => setCryptoLoading(false));
+    }, 0);
+    return () => window.clearTimeout(request);
   }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== 'Penny Stocks') return;
-    setPennyLoading(true);
-    setPennyData([]);
-    fetch('/api/penny')
-      .then(r => r.json())
-      .then(data => { setPennyData(Array.isArray(data) ? data : []); setPennyLoading(false); })
-      .catch(() => setPennyLoading(false));
+    const request = window.setTimeout(() => {
+      setPennyLoading(true);
+      setPennyData([]);
+      fetch('/api/penny')
+        .then(r => r.json())
+        .then(data => { setPennyData(Array.isArray(data) ? data : []); setPennyLoading(false); })
+        .catch(() => setPennyLoading(false));
+    }, 0);
+    return () => window.clearTimeout(request);
   }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== 'ETFs') return;
-    setEtfLoading(true);
-    setEtfData([]);
-    fetch('/api/etfs')
-      .then(r => r.json())
-      .then(data => { setEtfData(Array.isArray(data) ? data : []); setEtfLoading(false); })
-      .catch(() => setEtfLoading(false));
+    const request = window.setTimeout(() => {
+      setEtfLoading(true);
+      setEtfData([]);
+      fetch('/api/etfs')
+        .then(r => r.json())
+        .then(data => { setEtfData(Array.isArray(data) ? data : []); setEtfLoading(false); })
+        .catch(() => setEtfLoading(false));
+    }, 0);
+    return () => window.clearTimeout(request);
   }, [activeTab]);
 
   const gainers = quotes.filter(q => q.dp > 0).sort((a, b) => b.dp - a.dp).slice(0, 3);
@@ -301,7 +320,7 @@ export default function MarketsPage() {
                         <td className="py-3 px-4 text-right text-gray-400 text-sm font-medium">#{i + 1}</td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
-                            <img src={coin.image} alt={coin.name} className="w-6 h-6 rounded-full flex-shrink-0" />
+                            <Image src={coin.image} alt={coin.name} width={24} height={24} className="rounded-full flex-shrink-0" />
                             <span className="font-bold text-gray-900 text-sm">{coin.name}</span>
                             <span className="text-xs text-gray-400 uppercase">{coin.symbol}</span>
                           </div>

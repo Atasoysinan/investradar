@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 
 interface TrendingItem {
@@ -57,7 +57,7 @@ export default function MarketBuzz() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('trending');
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [trendingResult, stocktwitsResult] = await Promise.allSettled([
@@ -71,13 +71,16 @@ export default function MarketBuzz() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    load();
+    const initialLoad = window.setTimeout(() => { void load(); }, 0);
     const id = setInterval(load, 60000);
-    return () => clearInterval(id);
-  }, []);
+    return () => {
+      window.clearTimeout(initialLoad);
+      clearInterval(id);
+    };
+  }, [load]);
 
   const skeleton = [...Array(7)].map((_, i) => (
     <div key={i} className="px-3 py-2.5 flex items-center justify-between animate-pulse border-b border-gray-100">

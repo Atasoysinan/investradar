@@ -179,7 +179,7 @@ export async function GET(request: NextRequest) {
     // NewsData.io (skip if no key)
     NEWSDATA_KEY ? fetch(`https://newsdata.io/api/1/latest?apikey=${NEWSDATA_KEY}&language=en&category=business,politics,world${q ? '&q=' + encodeURIComponent(q) : ''}`, { next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No NewsData key'),
     // Mediastack (skip if no key)
-    MEDIASTACK_KEY ? fetch(`http://api.mediastack.com/v1/news?access_key=${MEDIASTACK_KEY}&languages=en&categories=business${q ? '&keywords=' + encodeURIComponent(q) : ''}&limit=25&sort=published_desc`, { next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No Mediastack key'),
+    MEDIASTACK_KEY ? fetch(`https://api.mediastack.com/v1/news?access_key=${encodeURIComponent(MEDIASTACK_KEY)}&languages=en&categories=business${q ? '&keywords=' + encodeURIComponent(q) : ''}&limit=25&sort=published_desc`, { redirect: 'error', next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No Mediastack key'),
     // RSS feeds
     ...((region === 'europe' ? EU_FEEDS : region === 'asia' ? ASIA_FEEDS : region === 'france' ? FRANCE_FEEDS : region === 'uae' ? UAE_FEEDS : region === 'saudi' ? SAUDI_FEEDS : RSS_FEEDS).map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[]))),
   ]);

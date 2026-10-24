@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 
 export async function generateMetadata({
     params,
@@ -147,7 +148,7 @@ export default async function CryptoDetailPage({
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="flex items-center gap-4 mb-6">
-          <img src={coin.image.large} alt={coin.name} className="w-16 h-16 rounded-full" />
+          <Image src={coin.image.large} alt={coin.name} width={64} height={64} className="rounded-full" priority />
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{coin.name}</h1>
             <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">{coin.symbol}</span>
@@ -218,11 +219,13 @@ export default async function CryptoDetailPage({
                     )}
                   </div>
                   {a.urlToImage && (
-                    <img
+                    <Image
                       src={a.urlToImage}
                       alt=""
-                      className="w-24 object-cover rounded flex-shrink-0 hidden sm:block"
-                      style={{ height: '72px' }}
+                      width={96}
+                      height={72}
+                      sizes="96px"
+                      className="w-24 h-[72px] object-cover rounded flex-shrink-0 hidden sm:block"
                     />
                   )}
                 </a>

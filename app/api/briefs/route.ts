@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 
+
 export const revalidate = 300;
+
 
 interface PoolArticle {
   title: string;
@@ -10,15 +12,20 @@ interface PoolArticle {
   source: { name: string };
 }
 
+
 interface Brief {
   headline: string;
   summary: string;
   sources: { name: string; url: string }[];
 }
 
+const GROQ_MODEL = process.env.GROQ_MODEL || 'openai/gpt-oss-20b';
+
+
 function baseUrl(): string {
   return process.env.NEXT_PUBLIC_SITE_URL || 'https://www.investradar.live';
 }
+
 
 function extractJson(text: string): unknown | null {
   const start = text.search(/[[{]/);
@@ -32,7 +39,15 @@ function extractJson(text: string): unknown | null {
   return null;
 }
 
+
 export async function GET(request: Request) {
+  // Preview must not fall back to the production news API or use its AI quota.
+  if (process.env.VERCEL_ENV !== 'production') {
+    return NextResponse.json(
+      { status: 'unavailable', briefs: [], reason: 'AI briefs are disabled in this test environment until an isolated news source is configured.' },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
   const apiKey = process.env.GROQ_API_KEY;
   const debug = new URL(request.url).searchParams.get('debug') === '1';
   if (!apiKey) return NextResponse.json({ status: 'ok', briefs: [], keyPresent: false });
@@ -56,7 +71,7 @@ export async function GET(request: Request) {
 Below are today's headlines, each with an index number.
 Group headlines that cover the SAME specific story/event (a group can be a single headline if it stands alone). Ignore unrelated pairings — do NOT group stories merely because they mention the same person or word.
 Return between 6 and 10 of the most important briefs.
-Respond with ONLY a JSON array, no prose. Each element:
+Respond with ONLY a JSON object with a "briefs" array and no prose. Each array element:
 {"headline":"<max 9 words, punchy, no source name>","summary":"<ONE sentence, max 22 words, neutral, original wording>","indices":[<article index numbers in this group>]}
 
 Headlines:
@@ -66,9 +81,10 @@ ${numbered}`;
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        model: GROQ_MODEL,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 900,
+        max_completion_tokens: 900,
+        reasoning_effort: 'low',
         temperature: 0.3,
         response_format: { type: 'json_object' },
       }),

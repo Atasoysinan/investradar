@@ -1,27 +1,41 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { extractTickers } from '@/lib/stockMentions';
 import StockNewsModal from './StockNewsModal';
 
 interface QuoteData { symbol: string; c: number; dp: number; }
 
 export default function StockPills({ headline, description }: { headline: string; description: string }) {
-  const tickers = extractTickers(headline, description);
+  const tickerKey = useMemo(
+    () => extractTickers(headline, description).join(','),
+    [headline, description],
+  );
+  const tickers = tickerKey ? tickerKey.split(',') : [];
   const [quotes, setQuotes] = useState<QuoteData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
-    if (tickers.length === 0) { setLoading(false); return; }
-    fetch(`/api/market?type=multi-quote&symbols=${tickers.join(',')}`)
-      .then(r => r.json())
-      .then(data => {
-        setQuotes(Array.isArray(data) ? data : []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [headline]);
+    if (!tickerKey) return;
+    const controller = new AbortController();
+    const request = window.setTimeout(() => {
+      setLoading(true);
+      fetch(`/api/market?type=multi-quote&symbols=${tickerKey}`, { signal: controller.signal })
+        .then(r => r.json())
+        .then(data => {
+          setQuotes(Array.isArray(data) ? data : []);
+          setLoading(false);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setLoading(false);
+        });
+    }, 0);
+    return () => {
+      window.clearTimeout(request);
+      controller.abort();
+    };
+  }, [tickerKey]);
 
   if (tickers.length === 0) return null;
 

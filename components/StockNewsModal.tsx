@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 
 interface NewsItem {
   id: number;
@@ -91,11 +92,14 @@ export default function StockNewsModal({ symbol, onClose }: { symbol: string; on
                   className="flex gap-3 bg-gray-800 rounded-lg p-3 hover:bg-gray-700 transition-colors"
                 >
                   {item.image && (
-                    <img
+                    <Image
                       src={item.image}
                       alt=""
-                      className="w-16 h-16 object-cover rounded flex-shrink-0"
-                      onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      width={64}
+                      height={64}
+                      sizes="64px"
+                      className="object-cover rounded flex-shrink-0"
+                      onError={e => { e.currentTarget.style.display = 'none'; }}
                     />
                   )}
                   <div>

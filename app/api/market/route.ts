@@ -19,7 +19,12 @@ async function fetchWithDelay<T>(fns: (() => Promise<T>)[], delayMs = 60): Promi
 }
 
 export async function GET(request: NextRequest) {
-  if (!KEY) return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+  if (!KEY) {
+    return NextResponse.json(
+      { error: 'Market data service is not configured.' },
+      { status: 503, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
 
   const { searchParams } = new URL(request.url);
   const symbol = searchParams.get('symbol');

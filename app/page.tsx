@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import StockPills from '@/components/StockPills';
 import NewsletterSignup from '@/components/NewsletterSignup';
@@ -31,12 +32,6 @@ interface GlobalNews {
   americas: Article[];
   europe: Article[];
   asia: Article[];
-}
-
-interface TopicNews {
-  markets: Article[];
-  tech: Article[];
-  geopolitics: Article[];
 }
 
 const CATEGORIES = [
@@ -141,9 +136,7 @@ export default function Home() {
   const [sectorLoading, setSectorLoading] = useState(true);
   const [globalNews, setGlobalNews] = useState<GlobalNews | null>(null);
   const [globalNewsLoading, setGlobalNewsLoading] = useState(true);
-  const [topicNews, setTopicNews] = useState<TopicNews | null>(null);
   const [briefs, setBriefs] = useState<{ headline: string; summary: string; sources: { name: string; url: string }[] }[]>([]);
-  const [topicNewsLoading, setTopicNewsLoading] = useState(true);
 
   const fetchNews = useCallback(async () => {
     setLoading(true);
@@ -167,27 +160,27 @@ export default function Home() {
   }, [region, searchQuery]);
 
   useEffect(() => {
-    fetchNews();
+    const initialLoad = window.setTimeout(() => { void fetchNews(); }, 0);
     const id = setInterval(fetchNews, 300000);
-    return () => clearInterval(id);
+    return () => {
+      window.clearTimeout(initialLoad);
+      clearInterval(id);
+    };
   }, [fetchNews]);
 
   useEffect(() => {
     Promise.allSettled([
       fetch('/api/sectors').then(r => r.json()),
       fetch('/api/global-news').then(r => r.json()),
-      fetch('/api/topic-news').then(r => r.json()),
       fetch('/api/briefs').then(r => r.json()),
-    ]).then(([sResult, gResult, tResult, bResult]) => {
+    ]).then(([sResult, gResult, bResult]) => {
       if (sResult.status === 'fulfilled' && Array.isArray(sResult.value)) {
         setSectorData(sResult.value as SectorItem[]);
       }
       if (gResult.status === 'fulfilled') setGlobalNews(gResult.value as GlobalNews);
-      if (tResult.status === 'fulfilled') setTopicNews(tResult.value as TopicNews);
       if (bResult.status === 'fulfilled' && Array.isArray((bResult.value as { briefs?: unknown[] }).briefs)) setBriefs((bResult.value as { briefs: { headline: string; summary: string; sources: { name: string; url: string }[] }[] }).briefs);
       setSectorLoading(false);
       setGlobalNewsLoading(false);
-      setTopicNewsLoading(false);
     });
   }, []);
 
@@ -325,12 +318,15 @@ export default function Home() {
                 rel="noopener noreferrer"
                 className="flex flex-col sm:flex-row bg-white border border-[#d9d7d2] rounded-xl overflow-hidden hover:border-gray-400 transition-colors group"
               >
-                <div className="w-full sm:w-3/5 flex-shrink-0 h-56 sm:h-80">
-                  <img
+                <div className="relative w-full sm:w-3/5 flex-shrink-0 h-56 sm:h-80">
+                  <Image
                     src={getArticleImage(hero)}
                     alt={decodeHtml(hero.title)}
-                    className="w-full h-full object-cover"
-                    onError={e => { (e.target as HTMLImageElement).src = DEFAULT_FALLBACK; }}
+                    fill
+                    priority
+                    sizes="(max-width: 639px) 100vw, (max-width: 1400px) 60vw, 840px"
+                    className="object-cover"
+                    onError={e => { e.currentTarget.src = DEFAULT_FALLBACK; }}
                   />
                 </div>
                 <div className="flex flex-col justify-center p-6 sm:p-8 flex-1">
@@ -366,12 +362,14 @@ export default function Home() {
                     rel="noopener noreferrer"
                     className="flex-shrink-0 w-[85%] sm:w-[60%] md:w-auto snap-start bg-white border border-[#d9d7d2] rounded-xl overflow-hidden hover:border-gray-400 transition-colors group flex flex-col"
                   >
-                    <div className="overflow-hidden bg-gray-100" style={{ height: '180px' }}>
-                      <img
+                    <div className="relative overflow-hidden bg-gray-100" style={{ height: '180px' }}>
+                      <Image
                         src={getArticleImage(article)}
                         alt={decodeHtml(article.title)}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={e => { (e.target as HTMLImageElement).src = DEFAULT_FALLBACK; }}
+                        fill
+                        sizes="(max-width: 767px) 85vw, (max-width: 1400px) 28vw, 390px"
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={e => { e.currentTarget.src = DEFAULT_FALLBACK; }}
                       />
                     </div>
                     <div className="p-4 flex flex-col flex-1">
@@ -495,12 +493,14 @@ export default function Home() {
                     {col.articles.map((a, i) => (
                       <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex gap-3 group items-start">
                         {a.urlToImage ? (
-                          <div className="flex-shrink-0 w-20 h-20 bg-gray-100 rounded overflow-hidden">
-                            <img
+                          <div className="relative flex-shrink-0 w-20 h-20 bg-gray-100 rounded overflow-hidden">
+                            <Image
                               src={upgradeImageQuality(a.urlToImage)}
                               alt=""
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={e => { const p = (e.target as HTMLImageElement).parentElement; if (p) p.style.display = 'none'; }}
+                              fill
+                              sizes="80px"
+                              className="object-cover group-hover:scale-105 transition-transform duration-300"
+                              onError={e => { const p = e.currentTarget.parentElement; if (p) p.style.display = 'none'; }}
                             />
                           </div>
                         ) : null}

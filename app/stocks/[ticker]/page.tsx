@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 const NEWS_DOMAINS = 'reuters.com,apnews.com,wsj.com,ft.com,cnbc.com,bloomberg.com,forbes.com,marketwatch.com,businessinsider.com,seekingalpha.com,benzinga.com';
 
@@ -144,11 +145,13 @@ export default async function StockDetailPage({
                     )}
                   </div>
                   {a.urlToImage && (
-                    <img
+                    <Image
                       src={a.urlToImage}
                       alt=""
-                      className="w-24 h-18 object-cover rounded flex-shrink-0 hidden sm:block"
-                      style={{ height: '72px' }}
+                      width={96}
+                      height={72}
+                      sizes="96px"
+                      className="w-24 h-[72px] object-cover rounded flex-shrink-0 hidden sm:block"
                     />
                   )}
                 </a>
