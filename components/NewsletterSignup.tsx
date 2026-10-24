@@ -34,8 +34,8 @@ export default function NewsletterSignup() {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-md p-8 max-w-2xl mx-auto text-center">
-      <h2 className="text-2xl font-bold text-gray-900 mb-2">Stay Ahead of the Market 📈</h2>
+    <div className="bg-white rounded-xl border border-[#d9d7d2] p-8 max-w-2xl mx-auto text-center">
+      <h2 className="text-2xl font-semibold text-gray-900 mb-2">Stay Ahead of the Market</h2>
       <p className="text-gray-500 text-sm mb-6">
         Get weekly market insights &amp; top news delivered to your inbox. Free, no spam.
       </p>

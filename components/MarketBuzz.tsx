@@ -43,7 +43,7 @@ interface TrendingData {
 
 type Tab = 'trending' | 'social' | 'reddit' | 'crypto';
 
-const ROW = 'flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-0';
+const ROW = 'flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-b border-white/10 last:border-0';
 
 function fmtPrice(p: number): string {
   return p >= 1000
@@ -100,22 +100,25 @@ export default function MarketBuzz() {
   ];
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+    <div className="bg-[#101820] text-white border border-[#26333d] rounded-xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-        <h2 className="text-xs font-bold text-black uppercase tracking-widest">Market Buzz</h2>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+        <div>
+          <h2 className="text-sm font-semibold text-white">Market Pulse</h2>
+          <p className="text-[11px] text-slate-400 mt-0.5">Live markets and investor attention</p>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-200 px-1">
+      <div className="flex border-b border-white/10 px-1">
         {TABS.map(([id, label]) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}
             className={`px-3 py-2.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
               activeTab === id
-                ? 'border-black text-black font-semibold'
-                : 'border-transparent text-gray-400 hover:text-gray-600'
+                ? 'border-blue-500 text-white font-semibold'
+                : 'border-transparent text-slate-400 hover:text-white'
             }`}
           >
             {label}
@@ -139,11 +142,11 @@ export default function MarketBuzz() {
               className={ROW}
             >
               <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">#{item.rank}</span>
-              <span className="text-black font-bold text-sm w-14 flex-shrink-0">{item.symbol}</span>
+              <span className="text-white font-bold text-sm w-14 flex-shrink-0">{item.symbol}</span>
               <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
                 {item.price != null ? (
                   <>
-                    <span className="text-black text-xs">{fmtPrice(item.price)}</span>
+                    <span className="text-slate-200 text-xs">{fmtPrice(item.price)}</span>
                     <span className={`text-xs font-medium flex-shrink-0 ${(item.dp ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                       {(item.dp ?? 0) >= 0 ? '▲' : '▼'} {Math.abs(item.dp ?? 0).toFixed(2)}%
                     </span>
@@ -160,8 +163,8 @@ export default function MarketBuzz() {
             <Link key={item.symbol} href={`/stocks/${item.symbol}`} className={ROW}>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-black font-bold text-sm">{item.symbol}</span>
-                  <span className="text-gray-400 text-xs truncate">{item.name}</span>
+                  <span className="text-white font-bold text-sm">{item.symbol}</span>
+                  <span className="text-slate-400 text-xs truncate">{item.name}</span>
                 </div>
               </div>
               <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
@@ -196,7 +199,7 @@ export default function MarketBuzz() {
               </div>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap pl-5">
                 {item.tickers.slice(0, 3).map(t => (
-                  <span key={t} className="text-xs text-black font-semibold">{t}</span>
+                  <span key={t} className="text-xs text-white font-semibold">{t}</span>
                 ))}
                 <span className="text-xs text-gray-400 ml-auto">▲ {item.score.toLocaleString()}</span>
               </div>
@@ -208,11 +211,11 @@ export default function MarketBuzz() {
             <Link key={coin.id} href={`/crypto/${coin.id}`} className={ROW}>
               <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">#{i + 1}</span>
               <div className="w-16 flex-shrink-0">
-                <span className="text-black font-bold text-xs uppercase">{coin.symbol}</span>
-                <p className="text-gray-400 text-xs truncate">{coin.name}</p>
+                <span className="text-white font-bold text-xs uppercase">{coin.symbol}</span>
+                <p className="text-slate-400 text-xs truncate">{coin.name}</p>
               </div>
               <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                <span className="text-black text-xs">{fmtPrice(coin.current_price)}</span>
+                <span className="text-slate-200 text-xs">{fmtPrice(coin.current_price)}</span>
                 <span className={`text-xs font-medium flex-shrink-0 ${coin.price_change_percentage_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {coin.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
                 </span>
