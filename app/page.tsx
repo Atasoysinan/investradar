@@ -181,15 +181,15 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-[#f4f2f0] text-[#0c0a08]">
       <header className="sticky top-0 z-40 border-b border-[#e5e7eb] bg-white/95 backdrop-blur-xl">
-        <div className="mx-auto flex h-[68px] max-w-[1200px] items-center gap-5 px-4 sm:px-6">
-          <Link href="/" className="mr-auto flex min-w-0 items-center gap-3">
-            <span className="text-[30px] font-semibold leading-none tracking-[-0.055em] text-[#0c0a08]">Invest<span className="text-[#1167ee]">Radar</span></span>
-            <span className="hidden max-w-32 text-[10px] font-normal leading-[1.15] text-[#6d6c6b] 2xl:block">Financial &amp; Geopolitical Intelligence</span>
+        <div className="mx-auto flex h-[74px] max-w-[1200px] items-center gap-5 px-4 sm:px-6">
+          <Link href="/" className="mr-auto flex min-w-0 shrink-0 flex-col items-start justify-center">
+            <span className="text-[30px] font-semibold leading-[0.9] tracking-[-0.055em] text-[#0c0a08]">Invest<span className="text-[#1167ee]">Radar</span></span>
+            <span className="mt-1 text-[9px] font-normal leading-none tracking-[-0.01em] text-[#6d6c6b] sm:text-[10px]">Financial &amp; Geopolitical Intelligence</span>
           </Link>
 
-          <nav aria-label="Primary navigation" className="hidden h-[68px] items-stretch gap-5 lg:flex xl:gap-7">
+          <nav aria-label="Primary navigation" className="hidden h-[74px] items-stretch gap-5 lg:flex xl:gap-7">
             {CATEGORIES.map(item => (
-              <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`border-b-2 px-0 text-[13px] font-normal transition-colors ${category === item.value && !query ? 'border-[#0c0a08] text-[#0c0a08]' : 'border-transparent text-[#6d6c6b] hover:text-[#0c0a08]'}`}>
+              <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`border-b-2 px-0 text-[13px] font-medium tracking-[-0.01em] transition-colors ${category === item.value && !query ? 'border-[#1167ee] text-[#0c0a08]' : 'border-transparent text-[#343434] hover:text-[#1167ee]'}`}>
                 {item.label}
               </button>
             ))}
@@ -206,7 +206,7 @@ export default function Home() {
         </div>
         <nav aria-label="Primary navigation" className="flex overflow-x-auto border-t border-[#e5e7eb] px-4 lg:hidden">
           {CATEGORIES.map(item => (
-            <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`mr-6 whitespace-nowrap border-b-2 py-3 text-xs font-normal ${category === item.value && !query ? 'border-[#0c0a08] text-[#0c0a08]' : 'border-transparent text-[#6d6c6b]'}`}>
+            <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`mr-6 whitespace-nowrap border-b-2 py-3 text-xs font-medium tracking-[-0.01em] ${category === item.value && !query ? 'border-[#1167ee] text-[#0c0a08]' : 'border-transparent text-[#343434]'}`}>
               {item.label}
             </button>
           ))}
