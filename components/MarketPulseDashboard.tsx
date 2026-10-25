@@ -28,7 +28,7 @@ const MOVERS = ['NVDA', 'MSFT', 'AAPL', 'AMD', 'AMZN'];
 function Change({ value }: { value: number }) {
   const up = value >= 0;
   return (
-    <span className={`font-mono text-xs font-semibold ${up ? 'text-[#28d780]' : 'text-[#ff5a52]'}`}>
+    <span className={`font-mono text-[11px] font-normal ${up ? 'text-[#55de97]' : 'text-[#ff6b63]'}`}>
       {up ? '+' : ''}{value.toFixed(2)}%
     </span>
   );
@@ -62,13 +62,13 @@ export default function MarketPulseDashboard() {
   const maxSectorMove = Math.max(1, ...visibleSectors.map(item => Math.abs(item.changePercent)));
 
   return (
-    <section className="overflow-hidden rounded-xl border border-[#24343d] bg-[#0c171d] text-white">
-      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 px-5 py-4 sm:px-6">
+    <section className="overflow-hidden rounded-xl bg-[#171721] text-[#ededf3]">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-white/10 px-5 py-3 sm:px-6">
         <div className="flex items-baseline gap-3">
-          <h2 className="text-2xl font-semibold tracking-[-0.03em]">Market Pulse</h2>
-          <p className="hidden text-xs text-slate-400 sm:block">Live markets. Key trends. Biggest movers.</p>
+          <h2 className="text-[22px] font-normal tracking-[-0.025em]">Market Pulse</h2>
+          <p className="hidden text-[11px] text-[#c3c3cc] sm:block">Live markets. Key trends. Biggest movers.</p>
         </div>
-        <Link href="/markets" className="text-xs font-semibold text-[#5ca2ff] hover:text-white">Full markets dashboard →</Link>
+        <Link href="/markets" className="text-[11px] font-normal text-[#9eabff] hover:text-white">Full markets dashboard →</Link>
       </div>
 
       {loading ? (
@@ -79,16 +79,16 @@ export default function MarketPulseDashboard() {
         </div>
       ) : (
         <div className="grid lg:grid-cols-[1.35fr_.9fr_.75fr]">
-          <div className="grid grid-cols-2 gap-3 border-white/10 p-4 sm:grid-cols-4 sm:p-5 lg:border-r">
+          <div className="grid grid-cols-2 gap-2 border-white/10 p-3 sm:grid-cols-4 sm:p-4 lg:border-r">
             {INDEXES.map(index => {
               const quote = quoteFor(index.symbol);
               return (
-                <Link key={index.symbol} href={`/stocks/${index.symbol}`} className="rounded-lg border border-white/10 bg-[#122129] p-3 transition-colors hover:border-[#5ca2ff]/60">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">{index.label}</p>
+                <Link key={index.symbol} href={`/stocks/${index.symbol}`} className="rounded-xl bg-[#1e1e2a] p-3 transition-colors hover:bg-[#272735]">
+                  <p className="text-[9px] font-normal uppercase tracking-[0.08em] text-[#c3c3cc]">{index.label}</p>
                   {quote?.c ? (
                     <>
-                      <p className="mt-2 font-mono text-lg font-semibold text-white">{quote.c.toLocaleString('en-US', { maximumFractionDigits: 2 })}</p>
-                      <div className="mt-2"><Change value={quote.dp ?? 0} /></div>
+                      <p className="mt-1.5 font-mono text-[17px] font-normal text-white">{quote.c.toLocaleString('en-US', { maximumFractionDigits: 2 })}</p>
+                      <div className="mt-1"><Change value={quote.dp ?? 0} /></div>
                     </>
                   ) : <p className="mt-5 text-xs text-slate-500">Unavailable</p>}
                 </Link>
@@ -96,9 +96,9 @@ export default function MarketPulseDashboard() {
             })}
           </div>
 
-          <div className="border-t border-white/10 px-5 py-4 lg:border-r lg:border-t-0">
+          <div className="border-t border-white/10 px-4 py-3 lg:border-r lg:border-t-0">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Sector performance</p>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {visibleSectors.map(sector => (
                 <div key={sector.ticker} className="grid grid-cols-[112px_1fr_54px] items-center gap-2 text-[11px]">
                   <span className="truncate text-slate-200">{sector.sectorName}</span>
@@ -114,12 +114,12 @@ export default function MarketPulseDashboard() {
             </div>
           </div>
 
-          <div className="border-t border-white/10 px-5 py-4 lg:border-t-0">
+          <div className="border-t border-white/10 px-4 py-3 lg:border-t-0">
             <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Top movers</p>
             <div className="divide-y divide-white/10">
               {movers.map(quote => (
-                <Link key={quote.symbol} href={`/stocks/${quote.symbol}`} className="flex items-center justify-between py-2.5 hover:text-[#5ca2ff]">
-                  <span className="text-xs font-semibold">{quote.symbol}</span>
+                <Link key={quote.symbol} href={`/stocks/${quote.symbol}`} className="flex items-center justify-between py-2 hover:text-[#9eabff]">
+                  <span className="text-xs font-normal">{quote.symbol}</span>
                   <span className="font-mono text-xs text-slate-300">${quote.c.toFixed(2)}</span>
                   <Change value={quote.dp ?? 0} />
                 </Link>

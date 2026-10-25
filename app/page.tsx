@@ -49,6 +49,11 @@ const VIDEO_CHANNELS = [
   { name: 'The Economist', url: 'https://www.youtube.com/@TheEconomist', initials: 'TE', color: '#e3120b' },
 ];
 
+function hasKeyword(text: string, keyword: string) {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);
+}
+
 function decodeHtml(value = '') {
   return value
     .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
@@ -72,19 +77,19 @@ function timeAgo(dateStr: string) {
 function articleImage(article: Article) {
   if (article.urlToImage) return article.urlToImage;
   const text = `${article.title} ${article.description}`.toLowerCase();
-  return FALLBACKS.find(item => item.words.some(word => text.includes(word)))?.image || DEFAULT_FALLBACK;
+  return FALLBACKS.find(item => item.words.some(word => hasKeyword(text, word)))?.image || DEFAULT_FALLBACK;
 }
 
 function categoryFor(article: Article) {
   const text = `${article.title} ${article.description}`.toLowerCase();
-  if (CATEGORIES[2].keywords.some(word => text.includes(word))) return 'AI & TECH';
-  if (CATEGORIES[3].keywords.some(word => text.includes(word))) return 'GEOPOLITICS';
+  if (CATEGORIES[2].keywords.some(word => hasKeyword(text, word))) return 'AI & TECH';
+  if (CATEGORIES[3].keywords.some(word => hasKeyword(text, word))) return 'GEOPOLITICS';
   return 'MARKETS';
 }
 
 function intelligenceScore(article: Article) {
   const text = `${article.title} ${article.description}`.toLowerCase();
-  const topicMatches = INTELLIGENCE_KEYWORDS.reduce((score, word) => score + Number(text.includes(word)), 0);
+  const topicMatches = INTELLIGENCE_KEYWORDS.reduce((score, word) => score + Number(hasKeyword(text, word)), 0);
   return topicMatches * 10 + Number(Boolean(article.urlToImage)) * 3 + Number(Boolean(article.description));
 }
 
@@ -146,13 +151,13 @@ export default function Home() {
     if (active.keywords.length === 0) {
       const intelligenceArticles = articles.filter(article => {
         const text = `${article.title} ${article.description}`.toLowerCase();
-        return INTELLIGENCE_KEYWORDS.some(word => text.includes(word));
+        return INTELLIGENCE_KEYWORDS.some(word => hasKeyword(text, word));
       });
       return intelligenceArticles.length >= 8 ? intelligenceArticles : articles;
     }
     const filtered = articles.filter(article => {
       const text = `${article.title} ${article.description}`.toLowerCase();
-      return active.keywords.some(word => text.includes(word));
+      return active.keywords.some(word => hasKeyword(text, word));
     });
     return filtered.length >= 4 ? filtered : articles;
   }, [articles, category, query]);
@@ -174,17 +179,17 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#f4f1ea] text-[#111820]">
-      <header className="sticky top-0 z-40 border-b border-[#d9d7d0] bg-[#fffdf8]/95 backdrop-blur-md">
-        <div className="mx-auto flex min-h-[74px] max-w-[1520px] items-center gap-5 px-4 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-[#f4f2f0] text-[#0c0a08]">
+      <header className="sticky top-0 z-40 border-b border-[#e5e7eb] bg-white/95 backdrop-blur-xl">
+        <div className="mx-auto flex h-[68px] max-w-[1200px] items-center gap-5 px-4 sm:px-6">
           <Link href="/" className="mr-auto flex min-w-0 items-center gap-3">
-            <span className="text-[28px] font-extrabold leading-none tracking-[-0.055em] text-[#111820]">Invest<span className="text-[#1167ee]">Radar</span></span>
-            <span className="hidden max-w-28 text-[10px] leading-[1.15] text-[#617080] xl:block">Financial &amp; Geopolitical Intelligence</span>
+            <span className="text-[30px] font-semibold leading-none tracking-[-0.055em] text-[#0c0a08]">Invest<span className="text-[#1167ee]">Radar</span></span>
+            <span className="hidden max-w-32 text-[10px] font-normal leading-[1.15] text-[#6d6c6b] 2xl:block">Financial &amp; Geopolitical Intelligence</span>
           </Link>
 
-          <nav aria-label="Primary navigation" className="hidden h-[74px] items-stretch gap-7 lg:flex">
+          <nav aria-label="Primary navigation" className="hidden h-[68px] items-stretch gap-5 lg:flex xl:gap-7">
             {CATEGORIES.map(item => (
-              <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`border-b-2 px-0 text-[13px] font-semibold transition-colors ${category === item.value && !query ? 'border-[#1167ee] text-[#111820]' : 'border-transparent text-[#475461] hover:text-[#111820]'}`}>
+              <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`border-b-2 px-0 text-[13px] font-normal transition-colors ${category === item.value && !query ? 'border-[#0c0a08] text-[#0c0a08]' : 'border-transparent text-[#6d6c6b] hover:text-[#0c0a08]'}`}>
                 {item.label}
               </button>
             ))}
@@ -193,71 +198,71 @@ export default function Home() {
           <form onSubmit={submitSearch} className="hidden items-center gap-2 md:flex">
             <label className="relative block">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7a8791]">⌕</span>
-              <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search companies, topics, markets…" className="h-10 w-56 rounded-md border border-[#d9d7d0] bg-white pl-9 pr-3 text-xs outline-none transition-colors focus:border-[#1167ee] xl:w-72" />
+              <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search companies, topics, markets…" className="h-11 w-52 rounded-[10px] border border-[#e5e7eb] bg-white pl-9 pr-3 text-xs outline-none transition-colors focus:border-[#0c0a08] xl:w-64" />
             </label>
           </form>
-          <button aria-label="Open watchlist" className="hidden h-10 w-10 place-items-center rounded-md border border-[#d9d7d0] bg-white text-xl transition-colors hover:border-[#1167ee] hover:text-[#1167ee] sm:grid">☆</button>
+          <button aria-label="Open watchlist" className="hidden h-11 w-11 place-items-center rounded-[10px] border border-[#e5e7eb] bg-white text-xl transition-colors hover:border-[#0c0a08] sm:grid">☆</button>
           <Header />
         </div>
-        <nav aria-label="Primary navigation" className="flex overflow-x-auto border-t border-[#ebe8e0] px-4 lg:hidden">
+        <nav aria-label="Primary navigation" className="flex overflow-x-auto border-t border-[#e5e7eb] px-4 lg:hidden">
           {CATEGORIES.map(item => (
-            <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`mr-6 whitespace-nowrap border-b-2 py-3 text-xs font-semibold ${category === item.value && !query ? 'border-[#1167ee] text-[#111820]' : 'border-transparent text-[#617080]'}`}>
+            <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`mr-6 whitespace-nowrap border-b-2 py-3 text-xs font-normal ${category === item.value && !query ? 'border-[#0c0a08] text-[#0c0a08]' : 'border-transparent text-[#6d6c6b]'}`}>
               {item.label}
             </button>
           ))}
         </nav>
       </header>
 
-      <div className="mx-auto max-w-[1520px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+      <div className="mx-auto max-w-[1200px] px-4 py-4 sm:px-6 lg:py-5">
         {error && <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
         {loading ? (
-          <div className="grid min-h-[460px] animate-pulse gap-4 lg:grid-cols-[1.45fr_.95fr_.9fr]">
-            <div className="rounded-xl bg-[#e4e0d8]" />
-            <div className="rounded-xl bg-[#e9e5dd]" />
-            <div className="rounded-xl bg-[#e9e5dd]" />
+          <div className="grid min-h-[376px] animate-pulse gap-3 lg:grid-cols-[1.62fr_1.14fr_1fr]">
+            <div className="rounded-2xl bg-[#e5e7eb]" />
+            <div className="rounded-2xl bg-[#e5e7eb]" />
+            <div className="rounded-2xl bg-[#e5e7eb]" />
           </div>
         ) : hero ? (
-          <section className="grid gap-4 lg:grid-cols-[1.45fr_.95fr_.9fr] lg:items-stretch">
-            <a href={hero.url} target="_blank" rel="noopener noreferrer" className="group relative min-h-[430px] overflow-hidden rounded-xl bg-[#111820] sm:min-h-[520px] lg:min-h-[470px]">
+          <section className="grid gap-3 lg:grid-cols-[1.62fr_1.14fr_1fr] lg:items-stretch">
+            <a href={hero.url} target="_blank" rel="noopener noreferrer" className="group relative min-h-[420px] overflow-hidden rounded-2xl bg-[#171721] sm:min-h-[480px] lg:min-h-[376px]">
               <ArticleImage article={hero} priority sizes="(max-width: 1023px) 100vw, 48vw" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-7">
-                <div className="mb-3 flex items-center gap-2 text-[10px] font-bold tracking-[0.08em]">
+                <div className="mb-2 flex items-center gap-2 text-[10px] font-normal uppercase tracking-[0.05em]">
                   <span>{categoryFor(hero)}</span>
                   {hero.isLive && <span className="rounded border border-emerald-300/70 px-1.5 py-0.5 text-emerald-200">LIVE</span>}
                 </div>
-                <h1 className="max-w-3xl font-serif text-[34px] leading-[1.02] tracking-[-0.035em] sm:text-[48px] lg:text-[50px]">{decodeHtml(hero.title)}</h1>
-                {hero.description && <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/80 line-clamp-3">{decodeHtml(hero.description)}</p>}
-                <p className="mt-4 text-xs text-white/65">{timeAgo(hero.publishedAt)}</p>
+                <h1 className="max-w-3xl text-[34px] font-normal leading-[1.02] tracking-[-0.035em] sm:text-[44px] lg:text-[40px] line-clamp-3">{decodeHtml(hero.title)}</h1>
+                {hero.description && <p className="mt-3 max-w-2xl text-[13px] leading-[1.45] text-white/80 line-clamp-2">{decodeHtml(hero.description)}</p>}
+                <p className="mt-3 text-[11px] text-white/65">{timeAgo(hero.publishedAt)}</p>
               </div>
             </a>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
               {supporting.map(article => (
-                <a key={article.url} href={article.url} target="_blank" rel="noopener noreferrer" className="group grid min-h-52 overflow-hidden rounded-xl border border-[#d9d7d0] bg-[#fffdf8] sm:grid-rows-[1fr_auto] lg:grid-cols-[44%_1fr] lg:grid-rows-1">
+                <a key={article.url} href={article.url} target="_blank" rel="noopener noreferrer" className="group grid min-h-44 overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white sm:grid-rows-[1fr_auto] lg:grid-cols-[46%_1fr] lg:grid-rows-1">
                   <div className="relative min-h-40 overflow-hidden bg-[#e5e1d8] lg:min-h-0"><ArticleImage article={article} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 16vw" /></div>
-                  <div className="flex flex-col justify-center p-4">
-                    <p className="mb-2 text-[10px] font-bold tracking-[0.08em] text-[#1167ee]">{categoryFor(article)}</p>
-                    <h2 className="font-serif text-[21px] leading-[1.08] tracking-[-0.025em] text-[#111820] group-hover:text-[#1167ee]">{decodeHtml(article.title)}</h2>
+                  <div className="flex flex-col justify-center p-3.5">
+                    <p className="mb-2 text-[9px] font-normal tracking-[0.05em] text-[#1167ee]">{categoryFor(article)}</p>
+                    <h2 className="text-[17px] font-normal leading-[1.08] tracking-[-0.02em] text-[#0c0a08] line-clamp-4 group-hover:text-[#1167ee]">{decodeHtml(article.title)}</h2>
                     <p className="mt-3 text-[11px] text-[#7a8791]">{timeAgo(article.publishedAt)}</p>
                   </div>
                 </a>
               ))}
             </div>
 
-            <aside className="overflow-hidden rounded-xl border border-[#d9d7d0] bg-[#fffdf8]">
-              <div className="flex items-center justify-between border-b border-[#d9d7d0] px-4 py-4">
-                <h2 className="text-xl font-semibold tracking-[-0.035em]">Today&apos;s Market Brief</h2>
+            <aside className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white">
+              <div className="flex items-center justify-between border-b border-[#e5e7eb] px-4 py-4">
+                <h2 className="text-[19px] font-normal tracking-[-0.025em]">Today&apos;s Market Brief</h2>
                 <span className="text-[11px] font-semibold text-[#1167ee]">Essential</span>
               </div>
-              <ol className="divide-y divide-[#e7e3da]">
+              <ol className="divide-y divide-[#e5e7eb]">
                 {briefItems.map((brief, index) => (
-                  <li key={`${brief.headline}-${index}`} className="grid grid-cols-[32px_8px_1fr] gap-2 px-4 py-4">
+                  <li key={`${brief.headline}-${index}`} className="grid grid-cols-[26px_7px_1fr] gap-2 px-4 py-3">
                     <span className="font-mono text-[11px] text-[#73808a]">{String(index + 1).padStart(2, '0')}</span>
                     <span className={`mt-1.5 h-2 w-2 rounded-full ${index < 2 ? 'bg-[#28b979]' : index === 2 ? 'bg-[#ff5a52]' : 'bg-[#e3a51a]'}`} />
                     <div>
-                      <p className="text-[13px] font-medium leading-[1.35] text-[#26313a] line-clamp-3">{decodeHtml(brief.headline)}</p>
+                      <p className="text-[12px] font-normal leading-[1.3] text-[#0c0a08] line-clamp-2">{decodeHtml(brief.headline)}</p>
                       <div className="mt-1.5 flex gap-2">
                         {brief.sources.slice(0, 1).map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold text-[#1167ee] hover:underline">{source.name}</a>)}
                       </div>
