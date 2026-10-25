@@ -26,7 +26,7 @@ export default function Header() {
           </span>
           <button
             onClick={() => signOut()}
-            className="text-xs text-gray-500 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors font-medium"
+          className="text-xs text-gray-500 border border-[#d9d7d0] bg-white hover:border-[#1167ee] px-3 py-2 rounded-md transition-colors font-medium"
           >
             Sign out
           </button>
@@ -34,7 +34,7 @@ export default function Header() {
       ) : (
         <button
           onClick={() => signIn('google')}
-          className="flex items-center gap-2 text-sm font-medium bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-1.5 rounded-lg transition-colors shadow-sm"
+          className="flex items-center gap-2 text-sm font-medium bg-[#1167ee] border border-[#1167ee] hover:bg-[#0757d6] text-white px-4 py-2 rounded-md transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M43.611 20.083H42V20H24V28H35.303C33.654 32.657 29.223 36 24 36C17.373 36 12 30.627 12 24C12 17.373 17.373 12 24 12C27.059 12 29.842 13.154 31.961 15.039L37.618 9.382C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24C4 35.045 12.955 44 24 44C35.045 44 44 35.045 44 24C44 22.659 43.862 21.35 43.611 20.083Z" fill="#FFC107"/>

@@ -1,13 +1,12 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import StockPills from '@/components/StockPills';
-import NewsletterSignup from '@/components/NewsletterSignup';
 import Header from '@/components/Header';
-import MarketBuzz from '@/components/MarketBuzz';
+import MarketPulseDashboard from '@/components/MarketPulseDashboard';
 import MarketChatter from '@/components/MarketChatter';
+import NewsletterSignup from '@/components/NewsletterSignup';
 
 interface Article {
   title: string;
@@ -20,86 +19,38 @@ interface Article {
   isLive?: boolean;
 }
 
-interface SectorItem {
-  ticker: string;
-  sectorName: string;
-  price: number;
-  change: number;
-  changePercent: number;
-}
-
-interface GlobalNews {
-  americas: Article[];
-  europe: Article[];
-  asia: Article[];
+interface Brief {
+  headline: string;
+  summary: string;
+  sources: { name: string; url: string }[];
 }
 
 const CATEGORIES = [
   { label: 'Briefing', value: 'briefing', keywords: [] as string[] },
-  { label: 'Markets', value: 'markets', keywords: ['market','stock','shares','equit','index','indices','bond','yield','wall street','nasdaq','dow','s&p','ftse','trading','trader','rally','sell-off','selloff','bull','bear'] },
-  { label: 'AI & Tech', value: 'ai-tech', keywords: ['tech','technolog','ai','artificial intelligence','software','chip','semiconductor','apple','google','microsoft','amazon','meta','nvidia','startup','cloud','cyber','data center','robot'] },
-  { label: 'Geopolitics', value: 'geopolitics', keywords: ['politic','government','election','president','congress','senate','parliament','policy','regulation','war','sanction','geopolit','diplomat','minister','china','russia','ukraine','israel','defense','military','trade'] },
+  { label: 'Markets', value: 'markets', keywords: ['market', 'stock', 'shares', 'index', 'bond', 'yield', 'nasdaq', 'dow', 's&p', 'trading', 'earnings'] },
+  { label: 'AI & Tech', value: 'ai-tech', keywords: ['technology', 'tech', 'ai', 'artificial intelligence', 'software', 'chip', 'semiconductor', 'cloud', 'cyber', 'robot'] },
+  { label: 'Geopolitics', value: 'geopolitics', keywords: ['politic', 'government', 'election', 'policy', 'war', 'sanction', 'geopolit', 'military', 'trade', 'tariff'] },
 ];
 
-function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  return `${Math.floor(hrs / 24)}d ago`;
-}
+const INTELLIGENCE_KEYWORDS = CATEGORIES.slice(1).flatMap(item => item.keywords);
 
-function sourceLabelClass(name: string = '') {
-  const n = name.toLowerCase();
-  if (n.includes('bloomberg') || n.includes('reuters')) return 'bg-red-600 text-white';
-  if (n.includes('yahoo') || n.includes('cnbc')) return 'bg-blue-600 text-white';
-  return 'bg-gray-700 text-white';
-}
-
-const DEFAULT_FALLBACK = 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1600&q=90';
-
-const TOPIC_FALLBACKS: { keys: string[]; image: string }[] = [
-  { keys: ['crypto', 'bitcoin', 'ethereum', 'blockchain'], image: 'https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1600&q=90' },
-  { keys: ['oil', 'energy', 'gas', 'opec', 'commodit'], image: 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?w=1600&q=90' },
-  { keys: ['fed', 'interest rate', 'central bank', 'inflation', 'ecb'], image: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?w=1600&q=90' },
-  { keys: ['war', 'sanction', 'election', 'military', 'geopolit', 'conflict'], image: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=1600&q=90' },
-  { keys: ['artificial intelligence', 'semiconductor', 'chip', 'software', 'tech'], image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1600&q=90' },
-  { keys: ['health', 'medicine', 'drug', 'vaccine', 'disease'], image: 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1600&q=90' },
-  { keys: ['science', 'research', 'space', 'climate'], image: 'https://images.unsplash.com/photo-1564325724739-bae0bd08762c?w=1600&q=90' },
-  { keys: ['stock', 'market', 'shares', 'nasdaq', 'earnings', 'trading'], image: 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1600&q=90' },
+const DEFAULT_FALLBACK = 'https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1800&q=90';
+const FALLBACKS = [
+  { words: ['ai', 'chip', 'semiconductor', 'technology', 'cloud'], image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=1400&q=90' },
+  { words: ['oil', 'energy', 'gas', 'opec'], image: 'https://images.unsplash.com/photo-1497435334941-8c899ee9e8e9?w=1400&q=90' },
+  { words: ['trade', 'shipping', 'port', 'supply chain'], image: 'https://images.unsplash.com/photo-1494412519320-aa613dfb7738?w=1400&q=90' },
+  { words: ['government', 'election', 'war', 'geopolit'], image: 'https://images.unsplash.com/photo-1541872703-74c5e44368f9?w=1400&q=90' },
 ];
 
-function upgradeImageQuality(u: string): string {
-  try {
-    const url = new URL(u);
-    const h = url.hostname;
-    const sp = url.searchParams;
-    if (h.includes('unsplash.com')) {
-      if (sp.has('w')) sp.set('w', '1600');
-      if (sp.has('q')) sp.set('q', '90');
-    } else if (h.includes('insider.com') || h.includes('infomaker.io')) {
-      if (sp.has('width')) sp.set('width', '1600');
-      if (sp.has('q')) sp.set('q', '90');
-    }
-    return url.toString();
-  } catch {
-    return u;
-  }
-}
+const VIDEO_CHANNELS = [
+  { name: 'CNBC', url: 'https://www.youtube.com/@CNBC', initials: 'C', color: '#c80000' },
+  { name: 'Bloomberg', url: 'https://www.youtube.com/@Bloomberg', initials: 'B', color: '#1167ee' },
+  { name: 'Yahoo Finance', url: 'https://www.youtube.com/@YahooFinance', initials: 'YF', color: '#6001d2' },
+  { name: 'The Economist', url: 'https://www.youtube.com/@TheEconomist', initials: 'TE', color: '#e3120b' },
+];
 
-function getArticleImage(article: { urlToImage?: string | null; image?: string | null; title?: string; description?: string }): string {
-  if (article.urlToImage) return upgradeImageQuality(article.urlToImage);
-  if (article.image) return upgradeImageQuality(article.image);
-  const text = ((article.title || '') + ' ' + (article.description || '')).toLowerCase();
-  for (const topic of TOPIC_FALLBACKS) {
-    if (topic.keys.some(k => text.includes(k))) return upgradeImageQuality(topic.image);
-  }
-  return upgradeImageQuality(DEFAULT_FALLBACK);
-}
-
-function decodeHtml(str: string): string {
-  return str
+function decodeHtml(value = '') {
+  return value
     .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, decimal: string) => String.fromCodePoint(parseInt(decimal, 10)))
     .replace(/&apos;/g, "'")
@@ -109,517 +60,267 @@ function decodeHtml(str: string): string {
     .replace(/&gt;/g, '>');
 }
 
-const SectionHeader = ({ children }: { children: React.ReactNode }) => (
-  <div className="border-b border-[#d9d7d2] pb-3 mb-6">
-    <h2 className="text-sm font-semibold text-[#171717] tracking-tight">{children}</h2>
-  </div>
-);
+function timeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const minutes = Math.max(0, Math.floor(diff / 60000));
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
 
-function whyItMatters(article: Article): string {
-  const text = `${article.title} ${article.description || ''}`.toLowerCase();
-  if (/(ai|artificial intelligence|chip|semiconductor|data center)/.test(text)) return 'Why it matters: AI spending is reshaping earnings, infrastructure demand and market leadership.';
-  if (/(rate|inflation|fed|central bank|yield)/.test(text)) return 'Why it matters: Changes in rates can quickly reprice equities, currencies and borrowing costs.';
-  if (/(war|sanction|trade|tariff|geopolit)/.test(text)) return 'Why it matters: Policy and geopolitical shifts can alter supply chains, energy prices and risk appetite.';
-  return 'Why it matters: This development may affect investor sentiment and the next market session.';
+function articleImage(article: Article) {
+  if (article.urlToImage) return article.urlToImage;
+  const text = `${article.title} ${article.description}`.toLowerCase();
+  return FALLBACKS.find(item => item.words.some(word => text.includes(word)))?.image || DEFAULT_FALLBACK;
+}
+
+function categoryFor(article: Article) {
+  const text = `${article.title} ${article.description}`.toLowerCase();
+  if (CATEGORIES[2].keywords.some(word => text.includes(word))) return 'AI & TECH';
+  if (CATEGORIES[3].keywords.some(word => text.includes(word))) return 'GEOPOLITICS';
+  return 'MARKETS';
+}
+
+function intelligenceScore(article: Article) {
+  const text = `${article.title} ${article.description}`.toLowerCase();
+  const topicMatches = INTELLIGENCE_KEYWORDS.reduce((score, word) => score + Number(text.includes(word)), 0);
+  return topicMatches * 10 + Number(Boolean(article.urlToImage)) * 3 + Number(Boolean(article.description));
+}
+
+function ArticleImage({ article, sizes, priority = false }: { article: Article; sizes: string; priority?: boolean }) {
+  return (
+    <Image
+      src={articleImage(article)}
+      alt={decodeHtml(article.title)}
+      fill
+      priority={priority}
+      sizes={sizes}
+      className="object-cover transition-transform duration-500 group-hover:scale-[1.025]"
+      onError={event => { event.currentTarget.src = DEFAULT_FALLBACK; }}
+    />
+  );
 }
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
+  const [briefs, setBriefs] = useState<Brief[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [region] = useState('us');
   const [category, setCategory] = useState('briefing');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [headerVisible, setHeaderVisible] = useState(true); const lastScrollY = useRef(0); useEffect(() => { const handleScroll = () => { const y = window.scrollY; setHeaderVisible(y < lastScrollY.current || y < 80); lastScrollY.current = y; }; window.addEventListener('scroll', handleScroll, { passive: true }); return () => window.removeEventListener('scroll', handleScroll); }, []);
+  const [query, setQuery] = useState('');
 
-  const [sectorData, setSectorData] = useState<SectorItem[]>([]);
-  const [sectorLoading, setSectorLoading] = useState(true);
-  const [globalNews, setGlobalNews] = useState<GlobalNews | null>(null);
-  const [globalNewsLoading, setGlobalNewsLoading] = useState(true);
-  const [briefs, setBriefs] = useState<{ headline: string; summary: string; sources: { name: string; url: string }[] }[]>([]);
-
-  const fetchNews = useCallback(async () => {
+  const loadNews = useCallback(async (search = '') => {
     setLoading(true);
     setError('');
     try {
-      let url = '/api/news?';
-      if (searchQuery) {
-        url += `q=${encodeURIComponent(searchQuery)}`;
-      } else {
-        url += `region=${region}`;
-      }
-      const res = await fetch(url);
-      const data = await res.json();
-      if (data.status === 'error') throw new Error(data.message);
-      setArticles(data.articles?.filter((a: Article) => a.title !== '[Removed]') || []);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load news');
+      const response = await fetch(search ? `/api/news?q=${encodeURIComponent(search)}` : '/api/news?region=us');
+      const data = await response.json();
+      if (!response.ok || data.status === 'error') throw new Error(data.message || 'News is unavailable');
+      setArticles((data.articles || []).filter((article: Article) => article.title && article.title !== '[Removed]'));
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'News is unavailable');
     } finally {
       setLoading(false);
     }
-  }, [region, searchQuery]);
-
-  useEffect(() => {
-    const initialLoad = window.setTimeout(() => { void fetchNews(); }, 0);
-    const id = setInterval(fetchNews, 300000);
-    return () => {
-      window.clearTimeout(initialLoad);
-      clearInterval(id);
-    };
-  }, [fetchNews]);
-
-  useEffect(() => {
-    Promise.allSettled([
-      fetch('/api/sectors').then(r => r.json()),
-      fetch('/api/global-news').then(r => r.json()),
-      fetch('/api/briefs').then(r => r.json()),
-    ]).then(([sResult, gResult, bResult]) => {
-      if (sResult.status === 'fulfilled' && Array.isArray(sResult.value)) {
-        setSectorData(sResult.value as SectorItem[]);
-      }
-      if (gResult.status === 'fulfilled') setGlobalNews(gResult.value as GlobalNews);
-      if (bResult.status === 'fulfilled' && Array.isArray((bResult.value as { briefs?: unknown[] }).briefs)) setBriefs((bResult.value as { briefs: { headline: string; summary: string; sources: { name: string; url: string }[] }[] }).briefs);
-      setSectorLoading(false);
-      setGlobalNewsLoading(false);
-    });
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchNews();
-  };
+  useEffect(() => {
+    const controller = new AbortController();
+    const initialLoad = window.setTimeout(() => { void loadNews(); }, 0);
+    fetch('/api/briefs', { signal: controller.signal })
+      .then(response => response.json())
+      .then(data => { if (Array.isArray(data.briefs)) setBriefs(data.briefs); })
+      .catch(() => undefined);
+    const refresh = window.setInterval(() => { void loadNews(); }, 300000);
+    return () => {
+      controller.abort();
+      window.clearTimeout(initialLoad);
+      window.clearInterval(refresh);
+    };
+  }, [loadNews]);
 
-  const activeCat = CATEGORIES.find(c => c.value === category) || CATEGORIES[0];
-  const matchesCat = (a: Article) => {
-    if (activeCat.keywords.length === 0) return true;
-    const hay = ((a.title || '') + ' ' + (a.description || '')).toLowerCase();
-    return activeCat.keywords.some(k => hay.includes(k));
-  };
-  const catFiltered = articles.filter(matchesCat);
-  const displayArticles = catFiltered.length >= 4 ? catFiltered : articles;
-  const imageScore = (a: Article): number => {
-    const img = a.urlToImage;
-    if (!img) return 0;
-    if (/guim\.co\.uk/i.test(img)) return 1;
-    if (/\/\d{2,3}x\d{2,3}\//.test(img) || /[?&](?:w|width)=\d{2,3}(?:&|$)/i.test(img)) return 1;
-    return 2;
-  };
-  const ordered = [...displayArticles].sort((a: Article, b: Article) => imageScore(b) - imageScore(a));
-  const hero = ordered[0]; const featured = ordered.slice(1, 4); const compact = ordered.slice(4);
+  const visibleArticles = useMemo(() => {
+    const active = CATEGORIES.find(item => item.value === category) || CATEGORIES[0];
+    if (query) return articles;
+    if (active.keywords.length === 0) {
+      const intelligenceArticles = articles.filter(article => {
+        const text = `${article.title} ${article.description}`.toLowerCase();
+        return INTELLIGENCE_KEYWORDS.some(word => text.includes(word));
+      });
+      return intelligenceArticles.length >= 8 ? intelligenceArticles : articles;
+    }
+    const filtered = articles.filter(article => {
+      const text = `${article.title} ${article.description}`.toLowerCase();
+      return active.keywords.some(word => text.includes(word));
+    });
+    return filtered.length >= 4 ? filtered : articles;
+  }, [articles, category, query]);
 
-  const filterPill = (active: boolean) =>
-    `relative py-4 text-sm transition-colors border-b-2 -mb-px whitespace-nowrap ${
-      active
-        ? 'text-[#171717] font-semibold border-blue-600'
-        : 'text-[#686866] font-medium border-transparent hover:text-[#171717]'
-    }`;
+  const ordered = useMemo(
+    () => [...visibleArticles].sort((a, b) => intelligenceScore(b) - intelligenceScore(a)),
+    [visibleArticles],
+  );
+  const hero = ordered[0];
+  const supporting = ordered.slice(1, 3);
+  const latest = ordered.slice(3, 11);
+  const briefItems = briefs.length
+    ? briefs.filter(item => item.headline !== decodeHtml(hero?.title || '')).slice(0, 5)
+    : latest.slice(0, 5).map(article => ({ headline: decodeHtml(article.title), summary: '', sources: [{ name: article.source?.name || 'Source', url: article.url }] }));
+
+  function submitSearch(event: FormEvent) {
+    event.preventDefault();
+    void loadNews(query.trim());
+  }
 
   return (
-    <div className="min-h-screen bg-[#f4f2ee] text-[#171717]">
-      <header className={`bg-[#fbfaf7]/95 backdrop-blur-md border-b border-[#d9d7d2] sticky top-0 z-50 transition-transform duration-300 ${headerVisible ? 'translate-y-0' : '-translate-y-full'}`}>
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 flex items-center justify-between gap-4 min-h-16">
-          <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-            <div className="w-8 h-8 bg-blue-600 rounded-md flex items-center justify-center font-bold text-sm text-white">IR</div>
-            <span className="text-xl font-bold text-[#171717]">Invest<span className="text-blue-600">Radar</span></span>
-            <span className="text-xs text-gray-400 hidden sm:block">Financial & Geopolitical Intelligence</span>
+    <main className="min-h-screen bg-[#f4f1ea] text-[#111820]">
+      <header className="sticky top-0 z-40 border-b border-[#d9d7d0] bg-[#fffdf8]/95 backdrop-blur-md">
+        <div className="mx-auto flex min-h-[74px] max-w-[1520px] items-center gap-5 px-4 sm:px-6 lg:px-8">
+          <Link href="/" className="mr-auto flex min-w-0 items-center gap-3">
+            <span className="text-[28px] font-extrabold leading-none tracking-[-0.055em] text-[#111820]">Invest<span className="text-[#1167ee]">Radar</span></span>
+            <span className="hidden max-w-28 text-[10px] leading-[1.15] text-[#617080] xl:block">Financial &amp; Geopolitical Intelligence</span>
           </Link>
-          <nav className="hidden lg:flex items-center gap-7 self-stretch" aria-label="Primary navigation">
-            {CATEGORIES.map(c => (
-              <button key={c.value} onClick={() => { setCategory(c.value); setSearchQuery(''); }} className={filterPill(category === c.value && !searchQuery)}>
-                {c.label}
+
+          <nav aria-label="Primary navigation" className="hidden h-[74px] items-stretch gap-7 lg:flex">
+            {CATEGORIES.map(item => (
+              <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`border-b-2 px-0 text-[13px] font-semibold transition-colors ${category === item.value && !query ? 'border-[#1167ee] text-[#111820]' : 'border-transparent text-[#475461] hover:text-[#111820]'}`}>
+                {item.label}
               </button>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
-            <form onSubmit={handleSearch} className="hidden sm:flex gap-2">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search markets, companies, topics..."
-                className="bg-white border border-[#d9d7d2] rounded-md px-4 py-2 text-sm w-48 xl:w-64 focus:outline-none focus:border-blue-500 text-gray-900 placeholder-gray-400"
-              />
-              <button type="submit" className="bg-[#171717] hover:bg-black text-white px-4 py-2 rounded-md text-sm font-medium transition-colors">
-                Search
-              </button>
-            </form>
-            <button type="button" aria-label="Open watchlist" title="Watchlist" className="hidden sm:grid place-items-center w-9 h-9 border border-[#d9d7d2] bg-white rounded-md text-xl hover:border-blue-500 hover:text-blue-600 transition-colors">☆</button>
-            <Header />
-          </div>
+
+          <form onSubmit={submitSearch} className="hidden items-center gap-2 md:flex">
+            <label className="relative block">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7a8791]">⌕</span>
+              <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search companies, topics, markets…" className="h-10 w-56 rounded-md border border-[#d9d7d0] bg-white pl-9 pr-3 text-xs outline-none transition-colors focus:border-[#1167ee] xl:w-72" />
+            </label>
+          </form>
+          <button aria-label="Open watchlist" className="hidden h-10 w-10 place-items-center rounded-md border border-[#d9d7d0] bg-white text-xl transition-colors hover:border-[#1167ee] hover:text-[#1167ee] sm:grid">☆</button>
+          <Header />
         </div>
-        <nav className="lg:hidden flex overflow-x-auto gap-6 px-4 sm:px-6 border-t border-[#ebe9e4]" aria-label="Primary navigation">
-          {CATEGORIES.map(c => (
-            <button key={c.value} onClick={() => { setCategory(c.value); setSearchQuery(''); }} className={filterPill(category === c.value && !searchQuery)}>
-              {c.label}
+        <nav aria-label="Primary navigation" className="flex overflow-x-auto border-t border-[#ebe8e0] px-4 lg:hidden">
+          {CATEGORIES.map(item => (
+            <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`mr-6 whitespace-nowrap border-b-2 py-3 text-xs font-semibold ${category === item.value && !query ? 'border-[#1167ee] text-[#111820]' : 'border-transparent text-[#617080]'}`}>
+              {item.label}
             </button>
           ))}
         </nav>
       </header>
 
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-8">
-        <div className="flex flex-col lg:flex-row gap-6 items-start">
-        <div className="flex-1 min-w-0 w-full max-w-full">
+      <div className="mx-auto max-w-[1520px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+        {error && <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
 
-        {/* Status bar */}
-        <div className="flex items-center justify-between mb-5">
-          <p className="text-sm text-gray-500 font-medium">
-            {loading ? 'Loading...' : error ? '' : ''}
-            {searchQuery && !loading && (
-              <span className="ml-2 text-blue-600">· Search results</span>
-            )}
-          </p>
-        </div>
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-red-700 text-sm">
-            ⚠️ {error}
+        {loading ? (
+          <div className="grid min-h-[460px] animate-pulse gap-4 lg:grid-cols-[1.45fr_.95fr_.9fr]">
+            <div className="rounded-xl bg-[#e4e0d8]" />
+            <div className="rounded-xl bg-[#e9e5dd]" />
+            <div className="rounded-xl bg-[#e9e5dd]" />
           </div>
-        )}
-
-        {/* Loading skeleton */}
-        {loading && (
-          <div className="space-y-6">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-80 animate-pulse" />
-            <div className="grid grid-cols-3 gap-4">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="bg-white rounded-lg shadow-sm border border-gray-100 animate-pulse">
-                  <div className="h-44 bg-gray-100 rounded-t-lg" />
-                  <div className="p-4 space-y-2">
-                    <div className="h-3 bg-gray-100 rounded w-1/3" />
-                    <div className="h-4 bg-gray-100 rounded w-full" />
-                    <div className="h-4 bg-gray-100 rounded w-4/5" />
-                  </div>
+        ) : hero ? (
+          <section className="grid gap-4 lg:grid-cols-[1.45fr_.95fr_.9fr] lg:items-stretch">
+            <a href={hero.url} target="_blank" rel="noopener noreferrer" className="group relative min-h-[430px] overflow-hidden rounded-xl bg-[#111820] sm:min-h-[520px] lg:min-h-[470px]">
+              <ArticleImage article={hero} priority sizes="(max-width: 1023px) 100vw, 48vw" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-7">
+                <div className="mb-3 flex items-center gap-2 text-[10px] font-bold tracking-[0.08em]">
+                  <span>{categoryFor(hero)}</span>
+                  {hero.isLive && <span className="rounded border border-emerald-300/70 px-1.5 py-0.5 text-emerald-200">LIVE</span>}
                 </div>
+                <h1 className="max-w-3xl font-serif text-[34px] leading-[1.02] tracking-[-0.035em] sm:text-[48px] lg:text-[50px]">{decodeHtml(hero.title)}</h1>
+                {hero.description && <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/80 line-clamp-3">{decodeHtml(hero.description)}</p>}
+                <p className="mt-4 text-xs text-white/65">{timeAgo(hero.publishedAt)}</p>
+              </div>
+            </a>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              {supporting.map(article => (
+                <a key={article.url} href={article.url} target="_blank" rel="noopener noreferrer" className="group grid min-h-52 overflow-hidden rounded-xl border border-[#d9d7d0] bg-[#fffdf8] sm:grid-rows-[1fr_auto] lg:grid-cols-[44%_1fr] lg:grid-rows-1">
+                  <div className="relative min-h-40 overflow-hidden bg-[#e5e1d8] lg:min-h-0"><ArticleImage article={article} sizes="(max-width: 639px) 100vw, (max-width: 1023px) 50vw, 16vw" /></div>
+                  <div className="flex flex-col justify-center p-4">
+                    <p className="mb-2 text-[10px] font-bold tracking-[0.08em] text-[#1167ee]">{categoryFor(article)}</p>
+                    <h2 className="font-serif text-[21px] leading-[1.08] tracking-[-0.025em] text-[#111820] group-hover:text-[#1167ee]">{decodeHtml(article.title)}</h2>
+                    <p className="mt-3 text-[11px] text-[#7a8791]">{timeAgo(article.publishedAt)}</p>
+                  </div>
+                </a>
               ))}
             </div>
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 divide-y divide-gray-100">
-              {[...Array(6)].map((_, i) => (
-                <div key={i} className="flex items-center justify-between px-4 py-3 animate-pulse">
-                  <div className="space-y-2 flex-1">
-                    <div className="h-3 bg-gray-100 rounded w-1/4" />
-                    <div className="h-4 bg-gray-100 rounded w-3/4" />
-                  </div>
-                  <div className="h-3 bg-gray-100 rounded w-16 ml-4" />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Articles */}
-        {!loading && !error && articles.length > 0 && (
-          <div className="space-y-6">
-            {/* Hero */}
-            {hero && (
-              <a
-                href={hero.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex flex-col sm:flex-row bg-white border border-[#d9d7d2] rounded-xl overflow-hidden hover:border-gray-400 transition-colors group"
-              >
-                <div className="relative w-full sm:w-3/5 flex-shrink-0 h-56 sm:h-80">
-                  <Image
-                    src={getArticleImage(hero)}
-                    alt={decodeHtml(hero.title)}
-                    fill
-                    priority
-                    sizes="(max-width: 639px) 100vw, (max-width: 1400px) 60vw, 840px"
-                    className="object-cover"
-                    onError={e => { e.currentTarget.src = DEFAULT_FALLBACK; }}
-                  />
-                </div>
-                <div className="flex flex-col justify-center p-6 sm:p-8 flex-1">
-                  <span className="self-start mb-3 flex items-center gap-1">
-                    <span className={`max-w-[120px] truncate text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(hero.source?.name)}`}>
-                      {hero.source?.name || 'Unknown'}
-                    </span>
-                    {hero.isLive && <span className="text-[10px] font-bold text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5">LIVE</span>}
-                  </span>
-                  <h1 className="font-serif text-3xl font-semibold text-gray-950 leading-[1.08] mb-3 group-hover:text-blue-700 transition-colors">
-                    {decodeHtml(hero.title)}
-                  </h1>
-                  {hero.description && (
-                    <p className="text-gray-600 text-sm leading-relaxed line-clamp-3 mb-4">
-                      {decodeHtml(hero.description)}
-                    </p>
-                  )}
-                  <p className="text-xs leading-relaxed text-blue-800 bg-blue-50 border-l-2 border-blue-600 px-3 py-2 mb-3">{whyItMatters(hero)}</p>
-                  <StockPills headline={hero.title} description={hero.description || ''} />
-                  <span className="text-xs text-gray-400 mt-2">{timeAgo(hero.publishedAt)}</span>
-                </div>
-              </a>
-            )}
-
-            {/* Featured 3-column */}
-            {featured.length > 0 && (
-              <div className="flex md:grid overflow-x-auto md:overflow-visible snap-x snap-mandatory max-w-full gap-4 md:grid-cols-3 -mx-4 px-4 md:mx-0 md:px-0 pb-2">
-                {featured.map((article, i) => (
-                  <a
-                    key={i}
-                    href={article.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-shrink-0 w-[85%] sm:w-[60%] md:w-auto snap-start bg-white border border-[#d9d7d2] rounded-xl overflow-hidden hover:border-gray-400 transition-colors group flex flex-col"
-                  >
-                    <div className="relative overflow-hidden bg-gray-100" style={{ height: '180px' }}>
-                      <Image
-                        src={getArticleImage(article)}
-                        alt={decodeHtml(article.title)}
-                        fill
-                        sizes="(max-width: 767px) 85vw, (max-width: 1400px) 28vw, 390px"
-                        className="object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={e => { e.currentTarget.src = DEFAULT_FALLBACK; }}
-                      />
-                    </div>
-                    <div className="p-4 flex flex-col flex-1">
-                      <span className="flex items-center gap-1 mb-2">
-                        <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">
-                          {article.source?.name || 'Unknown'}
-                        </span>
-                        {article.isLive && <span className="text-[10px] font-bold text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5">LIVE</span>}
-                      </span>
-                      <h2 className="font-semibold text-gray-900 text-base leading-snug group-hover:text-blue-700 transition-colors line-clamp-3">
-                        {decodeHtml(article.title)}
-                      </h2>
-                      <StockPills headline={article.title} description={article.description || ''} />
-                      <span className="text-xs text-gray-400 mt-auto pt-2">{timeAgo(article.publishedAt)}</span>
-                    </div>
-                  </a>
-                ))}
+            <aside className="overflow-hidden rounded-xl border border-[#d9d7d0] bg-[#fffdf8]">
+              <div className="flex items-center justify-between border-b border-[#d9d7d0] px-4 py-4">
+                <h2 className="text-xl font-semibold tracking-[-0.035em]">Today&apos;s Market Brief</h2>
+                <span className="text-[11px] font-semibold text-[#1167ee]">Essential</span>
               </div>
-            )}
-
-            {/* Compact list */}
-            {compact.length > 0 && (
-              <div className="bg-white border border-gray-200 rounded-lg shadow-sm divide-y divide-gray-100">
-                {compact.map((article, i) => (
-                  <div
-                    key={i}
-                    onClick={() => window.open(article.url, '_blank')}
-                    className="flex items-center justify-between py-3 px-4 hover:bg-gray-50 transition-colors group cursor-pointer"
-                  >
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <div className="flex items-center gap-3">
-                        <span className={`flex-shrink-0 max-w-[120px] truncate text-xs font-bold uppercase px-2 py-0.5 rounded ${sourceLabelClass(article.source?.name)}`}>
-                          {article.source?.name || 'Unknown'}
-                        </span>
-                        {article.isLive && <span className="flex-shrink-0 text-[10px] font-bold text-emerald-700 border border-emerald-200 rounded px-1.5 py-0.5">LIVE</span>}
-                        <span className="font-medium text-gray-900 text-sm line-clamp-1 group-hover:text-blue-700 transition-colors">
-                          {decodeHtml(article.title)}
-                        </span>
+              <ol className="divide-y divide-[#e7e3da]">
+                {briefItems.map((brief, index) => (
+                  <li key={`${brief.headline}-${index}`} className="grid grid-cols-[32px_8px_1fr] gap-2 px-4 py-4">
+                    <span className="font-mono text-[11px] text-[#73808a]">{String(index + 1).padStart(2, '0')}</span>
+                    <span className={`mt-1.5 h-2 w-2 rounded-full ${index < 2 ? 'bg-[#28b979]' : index === 2 ? 'bg-[#ff5a52]' : 'bg-[#e3a51a]'}`} />
+                    <div>
+                      <p className="text-[13px] font-medium leading-[1.35] text-[#26313a] line-clamp-3">{decodeHtml(brief.headline)}</p>
+                      <div className="mt-1.5 flex gap-2">
+                        {brief.sources.slice(0, 1).map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold text-[#1167ee] hover:underline">{source.name}</a>)}
                       </div>
-                      <StockPills headline={article.title} description={article.description || ''} />
                     </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0 ml-4 self-start pt-0.5">{timeAgo(article.publishedAt)}</span>
-                  </div>
+                  </li>
                 ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {!loading && !error && articles.length === 0 && (
-          <div className="text-center py-20 text-gray-400">
-            No articles found. Try a different category.
-          </div>
-        )}
-
-
-        </div>{/* end left column */}
-        <div className="w-full lg:w-72 flex-shrink-0">
-          {briefs.length > 0 && (
-            <aside className="w-full border border-gray-200 rounded-lg overflow-hidden flex flex-col">
-              <div className="px-4 py-2 bg-gray-900 text-white text-[11px] uppercase tracking-widest font-semibold flex items-center gap-2">
-                <span>Today in 5 Minutes</span>
-                <span className="text-gray-400 normal-case tracking-normal font-normal">· essential briefing</span>
-              </div>
-              <ol className="divide-y divide-gray-100 overflow-y-auto flex-1">
-                {briefs
-                  .filter((b) => !hero || b.headline !== decodeHtml(hero.title))
-                  .slice(0, 5)
-                  .map((b, i) => (
-                    <li key={i} className="px-4 py-2.5 hover:bg-gray-50 transition-colors">
-                      <p className="text-sm font-semibold text-gray-900 leading-snug">{b.headline}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-x-2">
-                        {b.sources.map((s2, j) => (
-                          <a key={j} href={s2.url} target="_blank" rel="noopener noreferrer" className="text-[11px] font-medium text-blue-600 hover:underline">
-                            {s2.name}
-                          </a>
-                        ))}
-                      </div>
-                    </li>
-                  ))}
               </ol>
             </aside>
-          )}
-          {/* Market Buzz below Latest rail in right sidebar */}
-          <div className="mt-6">
-            <MarketBuzz />
-          </div>
-        </div>
-        </div>{/* end flex row */}
-      </div>
+          </section>
+        ) : null}
 
-      {/* ── Below-the-fold enrichment sections ── */}
-      <div className="max-w-[1400px] mx-auto px-6 pb-16 space-y-14 mt-6 border-t border-gray-200 pt-10">
+        <div className="mt-5"><MarketPulseDashboard /></div>
 
-        {/* Global Economy */}
-        <section>
-          {globalNewsLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="space-y-4">
-                  {[...Array(3)].map((_, j) => (
-                    <div key={j} className="animate-pulse">
-                      <div className="h-28 bg-gray-100 rounded mb-2" />
-                      <div className="h-3 bg-gray-100 rounded w-1/3 mb-1" />
-                      <div className="h-4 bg-gray-100 rounded w-full mb-1" />
-                      <div className="h-4 bg-gray-100 rounded w-3/4" />
-                    </div>
-                  ))}
-                </div>
+        {latest.length > 0 && (
+          <section className="mt-7">
+            <div className="flex items-center gap-7 overflow-x-auto border-b border-[#d9d7d0]">
+              {CATEGORIES.map(item => (
+                <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`whitespace-nowrap border-b-2 py-3 text-xs font-semibold ${category === item.value ? 'border-[#1167ee] text-[#1167ee]' : 'border-transparent text-[#617080]'}`}>
+                  {item.value === 'briefing' ? 'Latest' : item.label}
+                </button>
               ))}
             </div>
-          ) : globalNews ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {([
-                { label: 'Americas', articles: globalNews.americas },
-                { label: 'Europe',   articles: globalNews.europe },
-                { label: 'Asia Pacific', articles: globalNews.asia },
-              ] as { label: string; articles: Article[] }[]).map(col => (
-                <div key={col.label}>
-                  <div className="space-y-5">
-                    {col.articles.map((a, i) => (
-                      <a key={i} href={a.url} target="_blank" rel="noopener noreferrer" className="flex gap-3 group items-start">
-                        {a.urlToImage ? (
-                          <div className="relative flex-shrink-0 w-20 h-20 bg-gray-100 rounded overflow-hidden">
-                            <Image
-                              src={upgradeImageQuality(a.urlToImage)}
-                              alt=""
-                              fill
-                              sizes="80px"
-                              className="object-cover group-hover:scale-105 transition-transform duration-300"
-                              onError={e => { const p = e.currentTarget.parentElement; if (p) p.style.display = 'none'; }}
-                            />
-                          </div>
-                        ) : null}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">{a.source?.name}</p>
-                          <p className="text-sm font-medium text-gray-900 leading-snug group-hover:text-black">{decodeHtml(a.title)}</p>
-                          <p className="text-xs text-gray-400 mt-1">{timeAgo(a.publishedAt)}</p>
-                        </div>
-                      </a>
-                    ))}
+            <div className="grid gap-x-6 gap-y-7 py-5 sm:grid-cols-2 lg:grid-cols-4">
+              {latest.map(article => (
+                <a key={article.url} href={article.url} target="_blank" rel="noopener noreferrer" className="group grid grid-cols-[112px_1fr] gap-4 border-b border-[#dedbd3] pb-5 sm:grid-cols-1 sm:border-b-0 sm:pb-0">
+                  <div className="relative aspect-[4/3] overflow-hidden rounded-md bg-[#e4e0d8]"><ArticleImage article={article} sizes="(max-width: 639px) 112px, (max-width: 1023px) 50vw, 24vw" /></div>
+                  <div>
+                    <p className="mb-1.5 text-[9px] font-bold tracking-[0.08em] text-[#1167ee]">{categoryFor(article)}</p>
+                    <h3 className="font-serif text-[20px] leading-[1.08] tracking-[-0.02em] group-hover:text-[#1167ee]">{decodeHtml(article.title)}</h3>
+                    <p className="mt-2 text-xs leading-relaxed text-[#687682] line-clamp-2">{decodeHtml(article.description)}</p>
+                    <p className="mt-2 text-[10px] text-[#8b959d]">{timeAgo(article.publishedAt)}</p>
                   </div>
-                </div>
+                </a>
               ))}
             </div>
-          ) : null}
-        </section>
+          </section>
+        )}
 
-        {/* Sector Performance */}
-        <section>
-          <SectionHeader>Sector Performance</SectionHeader>
-          {sectorLoading ? (
-            <div className="flex gap-4 overflow-x-auto pb-3">
-              {[...Array(10)].map((_, i) => (
-                <div key={i} className="min-w-[160px] flex-shrink-0 bg-white border border-gray-200 rounded-lg p-4 animate-pulse">
-                  <div className="h-3 bg-gray-100 rounded mb-2 w-3/4" />
-                  <div className="h-2 bg-gray-50 rounded mb-3 w-1/2" />
-                  <div className="h-5 bg-gray-100 rounded w-2/3" />
-                </div>
-              ))}
-            </div>
-          ) : sectorData.length > 0 ? (
-            <div className="flex overflow-x-auto gap-4 pb-3">
-              {sectorData.map(s => (
-                <div
-                  key={s.ticker}
-                  className={`min-w-[160px] flex-shrink-0 bg-white rounded-lg p-4 border ${
-                    s.changePercent >= 0
-                      ? 'border-green-200 border-l-4 border-l-green-500 bg-green-50'
-                      : 'border-red-200 border-l-4 border-l-red-400 bg-red-50'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <p className="text-xs font-bold text-gray-800 uppercase tracking-wide leading-tight">{s.sectorName}</p>
-                      <p className="text-xs text-gray-400 font-mono mt-0.5">{s.ticker}</p>
-                    </div>
-                    <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${
-                      s.changePercent >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'
-                    }`}>{s.changePercent >= 0 ? '▲' : '▼'}</span>
-                  </div>
-                  <div className="flex items-end justify-between">
-                    <p className="text-sm font-semibold text-gray-700">${s.price.toFixed(2)}</p>
-                    <p className={`text-base font-bold ${s.changePercent >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                      {Math.abs(s.changePercent).toFixed(2)}%
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
-
-        {/* Market Videos */}
-        <section>
-          <SectionHeader>Market Videos</SectionHeader>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {[
-              { name: 'CNBC', url: 'https://www.youtube.com/@CNBC', color: '#CC0000', desc: 'Breaking business news' },
-              { name: 'Bloomberg', url: 'https://www.youtube.com/@Bloomberg', color: '#1464F4', desc: 'Global finance & markets' },
-              { name: 'Yahoo Finance', url: 'https://www.youtube.com/@YahooFinance', color: '#6001D2', desc: 'Market data & earnings' },
-              { name: 'The Economist', url: 'https://www.youtube.com/@TheEconomist', color: '#E3120B', desc: 'Global economic insight' },
-              { name: 'WSJ', url: 'https://www.youtube.com/@wsj', color: '#0274B6', desc: 'Business & financial news' },
-              { name: 'Investopedia', url: 'https://www.youtube.com/@Investopedia', color: '#1B5E20', desc: 'Investing education' },
-            ].map((ch) => (
-              <a
-                key={ch.name}
-                href={ch.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="group flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-100 hover:border-gray-300 hover:shadow-md transition-all duration-200 text-center"
-              >
-                <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm"
-                  style={{ backgroundColor: ch.color }}
-                >
-                  {ch.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2)}
-                </div>
-                <span className="text-xs font-semibold text-gray-800 leading-tight">{ch.name}</span>
-                <span className="text-xs text-gray-400 leading-tight hidden md:block">{ch.desc}</span>
-              </a>
-            ))}
-          </div>
-        </section>
-
-      </div>
-
-      <section className="max-w-[1400px] mx-auto px-6 py-10 border-t border-gray-100">
-        <div className="flex items-center justify-between mb-6">
+        <section className="mt-8 grid gap-6 border-t border-[#d9d7d0] pt-8 lg:grid-cols-[1fr_1.15fr]">
           <div>
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-1">
-              Social Pulse
-            </h2>
-            <p className="text-xs text-gray-400">Real-time market sentiment from Stocktwits</p>
+            <div className="mb-4 flex items-end justify-between">
+              <div><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#7a8791]">Watch next</p><h2 className="mt-1 text-2xl font-semibold tracking-[-0.035em]">Market Videos</h2></div>
+              <Link href="/videos" className="text-xs font-semibold text-[#1167ee]">See all →</Link>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {VIDEO_CHANNELS.map(channel => (
+                <a key={channel.name} href={channel.url} target="_blank" rel="noopener noreferrer" className="rounded-lg border border-[#d9d7d0] bg-[#fffdf8] p-4 transition-colors hover:border-[#1167ee]">
+                  <span className="grid h-9 w-9 place-items-center rounded-full text-xs font-bold text-white" style={{ backgroundColor: channel.color }}>{channel.initials}</span>
+                  <p className="mt-3 text-xs font-semibold">{channel.name}</p><p className="mt-1 text-[10px] text-[#7a8791]">YouTube channel</p>
+                </a>
+              ))}
+            </div>
           </div>
-          <a href="https://stocktwits.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-black border border-gray-200 rounded-full px-3 py-1.5 hover:border-gray-400 transition-colors">
-            <span>View on Stocktwits</span>
-            <span>→</span>
-          </a>
-        </div>
-        <MarketChatter />
-      </section>
+          <div>
+            <div className="mb-4"><p className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#7a8791]">Investor attention</p><h2 className="mt-1 text-2xl font-semibold tracking-[-0.035em]">Social Pulse</h2></div>
+            <MarketChatter />
+          </div>
+        </section>
 
-      <div className="max-w-[1400px] mx-auto px-6 pb-12">
-        <NewsletterSignup />
+        <div className="mt-10"><NewsletterSignup /></div>
       </div>
 
-      <footer className="border-t border-gray-200 py-6 text-center text-xs text-gray-400">
-        © 2026 InvestRadar · Financial &amp; Geopolitical Intelligence
-      </footer>
-    </div>
+      <footer className="border-t border-[#d9d7d0] bg-[#fffdf8] px-6 py-7 text-center text-[11px] text-[#7a8791]">© 2026 InvestRadar · Financial &amp; Geopolitical Intelligence</footer>
+    </main>
   );
 }
