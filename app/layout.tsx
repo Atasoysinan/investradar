@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import TickerBar from '@/components/TickerBar';
-import BreakingNewsBanner from '@/components/BreakingNewsBanner';
 import Providers from './providers';
 import './globals.css';
 
@@ -57,7 +56,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     <body className="font-sans">
                             <Providers>
                                       <TickerBar />
-                                      <BreakingNewsBanner />
                                 {children}
                             </Providers>
                     </body>

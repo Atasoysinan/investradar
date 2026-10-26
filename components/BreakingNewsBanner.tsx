@@ -37,7 +37,7 @@ export default function BreakingNewsBanner() {
       {/* BREAKING badge */}
       <div className="flex-shrink-0 flex items-center px-3 border-r border-red-700 h-full bg-red-700">
         <span className="text-white text-xs font-bold uppercase tracking-widest whitespace-nowrap">
-          🔴 Breaking
+          Breaking
         </span>
       </div>
 

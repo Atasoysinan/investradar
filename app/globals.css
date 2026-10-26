@@ -1,8 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f4f2ee;
-  --foreground: #171717;
+  --background: #f4f2f0;
+  --foreground: #0c0a08;
+  --paper: #ffffff;
+  --hairline: #e5e7eb;
+  --muted: #6d6c6b;
+  --action: #e4f222;
+  --brand: #1167ee;
+  --market-canvas: #171721;
+  --market-surface: #1e1e2a;
 }
 
 @theme inline {
@@ -16,11 +23,13 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "ss01" on;
 }
 
 ::selection {
-  background: #dbeafe;
-  color: #172554;
+  background: #e4f222;
+  color: #0c0a08;
 }
 
 @keyframes ticker-scroll {
@@ -40,4 +49,9 @@ body {
 
 .ticker-track:hover {
   animation-play-state: paused;
+}
+
+* {
+  scrollbar-color: #b8b5ad transparent;
+  scrollbar-width: thin;
 }
