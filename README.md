@@ -110,7 +110,7 @@ News, global-news, topic-news and breaking-news distinguish confirmed empty resu
 
 ## GitHub Actions CI
 
-`.github/workflows/ci.yml` runs on pull requests, every branch push, and manual dispatch. Four independent Node.js 24 jobs install the lockfile with `npm ci`, then run lint, `npm run typecheck`, `npm test`, and `npm run build -- --webpack`. Typecheck generates Next.js route types before checking a clean checkout. The test glob excludes external Redis integration tests, which remain explicit manual checks. CI does not require application secrets or deploy anything. Webpack is selected explicitly for the verified production build; the default local build command remains unchanged.
+`.github/workflows/ci.yml` runs on pull requests, every branch push, and manual dispatch. Four independent Node.js 24 jobs install the lockfile with `npm ci`, then run lint, `npm run typecheck`, `npm test`, and `npm run build`. The build script explicitly runs `next build --webpack`, so local builds, CI and Vercel's default npm build path use the same bundler. Typecheck generates Next.js route types before checking a clean checkout. The test glob excludes external Redis integration tests, which remain explicit manual checks. CI does not require application secrets or deploy anything.
 
 Actions are pinned to commit SHAs, repository permission is read-only, checkout credentials are not persisted, and outdated runs are cancelled. `CI gate` succeeds only when every matrix check succeeds; it can be selected as a required branch-protection check once this workflow has run on GitHub. Adding the workflow does not itself change repository protection rules. All new source and test files must be included in the eventual commit so a fresh checkout can run the full suite.
 
