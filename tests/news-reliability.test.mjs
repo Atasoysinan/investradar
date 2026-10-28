@@ -269,3 +269,88 @@ test('only a real publication in the past hour is live', async () => {
   const get = newsHandler(async url => new URL(url).hostname === 'newsapi.org' ? Response.json({ articles:[{...article,title:'Recent finance announcement',publishedAt:new Date(now-60000).toISOString()},{...article,title:'Old technology release',publishedAt:new Date(now-7200000).toISOString()},{...article,title:'Future market forecast',publishedAt:new Date(now+3600000).toISOString()}] }) : new Response('', {status:503}));
   const rows = (await (await get()).json()).articles; assert.equal(rows.find(r=>r.title.startsWith('Recent')).isLive,true); assert.equal(rows.find(r=>r.title.startsWith('Old')).isLive,false); assert.equal(rows.find(r=>r.title.startsWith('Future')).isLive,false);
 });
+
+async function atomResponse(xml) {
+  return newsHandler(async url => url === 'https://www.theverge.com/rss/index.xml'
+    ? new Response(xml) : new Response('', { status: 503 }))();
+}
+const atomFeed = entries => `<feed xmlns="http://www.w3.org/2005/Atom"><title>The Verge feed</title><updated>2026-10-28T18:00:00Z</updated>${entries}</feed>`;
+test('Atom: article link, HTML title, summary, image and original publication date', async () => {
+  const response = await atomResponse(atomFeed(`<entry><title type="html">Google&#8217;s &amp; Xreal launch</title>
+    <link rel="self" href="https://example.test/entry.xml"/><link type='text/html' href='https://www.theverge.com/story?a=1&amp;b=2' rel='alternate'/>
+    <published>2026-10-27T12:00:00-04:00</published><updated>2026-10-28T18:00:00Z</updated>
+    <summary type="html">&lt;p&gt;Launch &amp; details&lt;/p&gt;</summary><content type="html"><![CDATA[<img src="https://example.test/photo.jpg?a=1&amp;b=2"/>]]></content></entry>`));
+  assert.equal(response.status, 200);
+  const [article] = (await response.json()).articles;
+  assert.equal(article.title, 'Google’s & Xreal launch');
+  assert.equal(article.url, 'https://www.theverge.com/story?a=1&b=2');
+  assert.equal(article.publishedAt, '2026-10-27T16:00:00.000Z');
+  assert.equal(article.description, 'Launch & details');
+  assert.equal(article.urlToImage, 'https://example.test/photo.jpg?a=1&b=2');
+  assert.equal(article.source.name, 'The Verge');
+});
+test('Atom: prefixed namespace, default alternate link and content keep publication date unknown', async () => {
+  const response = await atomResponse(`<atom:feed xmlns:atom='http://www.w3.org/2005/Atom'><atom:entry>
+    <atom:title><![CDATA[Technology &amp; markets]]></atom:title><atom:link href="https://www.theverge.com/prefixed"/>
+    <atom:updated>2026-10-27T10:00:00Z</atom:updated><atom:content type="html">&lt;p&gt;Details&lt;/p&gt;</atom:content>
+    </atom:entry></atom:feed>`);
+  const [article] = (await response.json()).articles;
+  assert.equal(article.title, 'Technology & markets'); assert.equal(article.description, 'Details');
+  assert.equal(article.publishedAt, ''); assert.equal(article.isLive, false);
+});
+test('Atom: malformed entries are skipped, self and enclosure links are not article links', async () => {
+  const response = await atomResponse(atomFeed(`<entry><title>Self only</title><link rel="self" href="https://example.test/self"/></entry>
+    <entry><title>Enclosure only</title><link rel="enclosure" href="https://example.test/file"/></entry>
+    <entry><title>Unsafe link</title><link href="javascript:alert(1)"/></entry>
+    <entry><link href="https://example.test/missing-title"/></entry>
+    <entry><title>Healthy entry survives</title><link href="https://www.theverge.com/healthy"/></entry>`));
+  const rows = (await response.json()).articles;
+  assert.equal(rows.length, 1); assert.equal(rows[0].title, 'Healthy entry survives');
+  assert.equal(rows[0].publishedAt, ''); assert.equal(rows[0].isLive, false);
+});
+test('Atom: invalid publication date is not replaced with current or modification time', async () => {
+  const response = await atomResponse(atomFeed('<entry><title>Unknown publication date</title><link href="https://www.theverge.com/unknown"/><published>invalid</published><updated>2026-10-28T18:00:00Z</updated></entry>'));
+  const [article] = (await response.json()).articles;
+  assert.equal(article.publishedAt, ''); assert.equal(article.isLive, false);
+});
+test('Atom: only ten entries are consumed per feed', async () => {
+  const response = await atomResponse(atomFeed(Array.from({ length: 12 }, (_, i) => `<entry><title>Distinct${i} news</title><link href="https://www.theverge.com/story${i}"/></entry>`).join('')));
+  assert.equal((await response.json()).articles.length, 10);
+});
+test('Atom: valid empty feed is distinct from an unavailable or incomplete feed', async () => {
+  assert.equal((await atomResponse(atomFeed(''))).status, 200);
+  assert.equal((await atomResponse('<feed xmlns="http://www.w3.org/2005/Atom">')).status, 503);
+  assert.equal((await atomResponse('<html><entry>Not Atom</entry></html>')).status, 503);
+});
+
+
+test('Atom: recently updated entry without publication is neither dated nor LIVE', async () => {
+  const response = await atomResponse(atomFeed(`<entry><title>Older edited article</title><link href="https://www.theverge.com/edited"/><updated>${new Date().toISOString()}</updated></entry>`));
+  const [article] = (await response.json()).articles;
+  assert.equal(article.publishedAt, ''); assert.equal(article.isLive, false);
+});
+for (const entries of [
+  '<entry><title>No link</title></entry>',
+  '<entry><link href="https://example.test/no-title"/></entry>',
+  '<entry><title>Unsafe</title><link href="javascript:alert(1)"/></entry>',
+  '<entry/>',
+  '<entry><title>Unclosed entry</title>',
+]) test(`Atom: nonempty unusable feed fails: ${entries}`, async () => {
+  const response = await atomResponse(atomFeed(entries));
+  assert.equal(response.status, 503);
+  assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.equal((await response.json()).status, 'error');
+});
+test('Atom: unusable feed signals partial failure while another source survives', async () => {
+  const get = newsHandler(async url => new URL(url).hostname === 'www.theverge.com'
+    ? new Response(atomFeed('<entry><title>No link</title></entry>'))
+    : new URL(url).hostname === 'newsapi.org' ? Response.json({ articles: [article] }) : new Response('', { status: 503 }));
+  const response = await get();
+  assert.equal(response.status, 200); assert.equal(response.headers.get('x-news-data-partial'), 'true');
+  assert.equal((await response.json()).articles.length, 1);
+});
+test('RSS: nonempty unusable items cannot masquerade as a successful empty feed', async () => {
+  const get = newsHandler(async url => new URL(url).hostname === 'www.theverge.com'
+    ? new Response('<rss><channel><item><title>No link</title></item></channel></rss>') : new Response('', { status: 503 }));
+  assert.equal((await get()).status, 503);
+});
