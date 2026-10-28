@@ -120,16 +120,27 @@ function text(value: unknown): string {
 
 const SOURCE_TIMEOUT_MS = 5000;
 
+class NewsSourceTimeoutError extends Error {}
+
+// Only known public codes may enter logs; provider text can echo credentials.
+const SAFE_PROVIDER_CODES = new Set([
+  'Unauthorized', 'RateLimitExceeded', 'TooManyRequests',
+  'invalid_access_key', 'missing_access_key', 'usage_limit_reached',
+  'rate_limit_reached', 'function_access_restricted', 'https_access_restricted',
+  'ip_restricted', 'internal_error',
+]);
+
 async function fetchSource<T>(
   url: string,
   options: RequestInit & { next: { revalidate: number } },
   read: (response: Response) => Promise<T>,
+  acceptHttpErrors = false,
 ): Promise<T> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
-      reject(new Error('News source timed out'));
+      reject(new NewsSourceTimeoutError('News source timed out'));
       controller.abort();
     }, SOURCE_TIMEOUT_MS);
   });
@@ -138,7 +149,7 @@ async function fetchSource<T>(
       deadline,
       (async () => {
         const response = await fetch(url, { ...options, signal: controller.signal });
-        if (!response.ok) throw new Error('News source unavailable');
+        if (!response.ok && !acceptHttpErrors) throw new Error('News source unavailable');
         return read(response);
       })(),
     ]);
@@ -148,8 +159,36 @@ async function fetchSource<T>(
 }
 
 async function fetchProvider(url: string, field: string, sourceName: string, revalidate: number): Promise<Article[]> {
-  const payload: unknown = await fetchSource(url, { redirect: 'error', next: { revalidate } }, response => response.json());
-  const items = newsArticles(payload, field);
+  let httpStatus: number | null = null;
+  let providerCode: string | null = null;
+  let failure = 'network_error';
+  let items: Record<string, unknown>[];
+  try {
+    const payload: unknown = await fetchSource(url, { redirect: 'error', next: { revalidate } }, async response => {
+      httpStatus = response.status;
+      failure = response.ok ? 'invalid_response' : 'http_error';
+      const data: unknown = await response.json();
+      const body = record(data);
+      const code = record(body.error).code ?? record(body.results).code;
+      if (typeof code === 'string' && SAFE_PROVIDER_CODES.has(code)) providerCode = code;
+      if (!response.ok) throw new Error('News source unavailable');
+      return data;
+    }, true);
+    const body = record(payload);
+    if (body.status === 'error' || body.success === false || body.error
+      || (Array.isArray(body.errors) ? body.errors.length > 0 : Boolean(body.errors))) failure = 'provider_error';
+    items = newsArticles(payload, field);
+  } catch (error) {
+    if (sourceName === 'NewsData' || sourceName === 'Mediastack') {
+      console.warn('News provider request failed', {
+        provider: sourceName,
+        failure: error instanceof NewsSourceTimeoutError ? 'timeout' : failure,
+        httpStatus,
+        providerCode,
+      });
+    }
+    throw new Error('News source unavailable');
+  }
   return items.flatMap((item): Article[] => {
     const a = record(item);
     const title = text(a.title);
@@ -171,25 +210,38 @@ async function fetchRSS(feedUrl: string, sourceName: string): Promise<Article[]>
     headers: { 'User-Agent': 'InvestRadar/1.0' },
     next: { revalidate: 300 },
   }, response => response.text());
-  if (!/<(?:rss|rdf:RDF)(?:\s|>)/i.test(text) || !/<\/(?:rss|rdf:RDF)\s*>/i.test(text)) throw new Error('Invalid news feed');
-  const items = text.match(/<item>([\s\S]*?)<\/item>/g) || [];
-  return items.slice(0, 10).flatMap((item): Article[] => {
-    const titleM   = item.match(/<title>([\s\S]*?)<\/title>/);
-    const linkM    = item.match(/<link>([\s\S]*?)<\/link>/)
-                  || item.match(/<guid[^>]*>([\s\S]*?)<\/guid>/);
-    const dateM    = item.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
-    const descM    = item.match(/<description>([\s\S]*?)<\/description>/);
-    const imgM     = item.match(/<media:content[^>]+url="([^"]+)"/i)
-                  || item.match(/<enclosure[^>]+url="([^"]+)"/i)
-                  || item.match(/<media:thumbnail[^>]+url="([^"]+)"/i);
-    const title    = titleM  ? stripCDATA(titleM[1])  : '';
-    const url      = linkM   ? stripCDATA(linkM[1]).trim() : '';
-    if (!title || !url) return [];
-    const publishedAt = dateM ? parsePubDate(stripCDATA(dateM[1])) : '';
-    const description = descM ? stripHTML(stripCDATA(descM[1])).slice(0, 200) : '';
-    const urlToImage  = decodeEntities(imgM ? imgM[1] : (item.match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || null);
+  const atom = /<(?:[\w.-]+:)?feed\b[^>]*\bxmlns(?::[\w.-]+)?\s*=\s*["']http:\/\/www\.w3\.org\/2005\/Atom["']/i.test(text)
+    && /<\/(?:[\w.-]+:)?feed\s*>/i.test(text);
+  if (!atom && (!/<(?:rss|rdf:RDF)(?:\s|>)/i.test(text) || !/<\/(?:rss|rdf:RDF)\s*>/i.test(text))) throw new Error('Invalid news feed');
+  const items = text.match(atom ? /<(?:[\w.-]+:)?entry\b[^>]*>[\s\S]*?<\/(?:[\w.-]+:)?entry\s*>/gi : /<item>([\s\S]*?)<\/item>/g) || [];
+  const articles = items.slice(0, 10).flatMap((item): Article[] => {
+    const element = (name: string) => item.match(new RegExp(`<(?:[\\w.-]+:)?${name}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?${name}\\s*>`, 'i'))?.[1] || '';
+    const attribute = (tag: string, name: string) => tag.match(new RegExp(`\\s${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i'))?.[2] || '';
+    const title = stripHTML(stripCDATA(element('title')));
+    const atomLinks = atom ? item.match(/<(?:[\w.-]+:)?link\b[^>]*>/gi) || [] : [];
+    const articleLink = atomLinks.find(tag => {
+      const rel = attribute(tag, 'rel').toLowerCase();
+      const type = attribute(tag, 'type').toLowerCase();
+      return (!rel || rel === 'alternate') && (!type || type === 'text/html' || type === 'application/xhtml+xml');
+    });
+    const url = atom ? decodeHtml(attribute(articleLink || '', 'href')).trim()
+      : stripCDATA(element('link') || element('guid')).trim();
+    if (!title || !url || (atom && !/^https?:\/\//i.test(url))) return [];
+    // Modification time is not publication time; missing dates stay unknown.
+    const date = atom ? element('published') : element('pubDate');
+    const publishedAt = date ? parsePubDate(stripCDATA(date)) : '';
+    const content = atom ? element('summary') || element('content') : element('description');
+    const description = stripHTML(stripCDATA(content)).slice(0, 200);
+    const imgM = item.match(/<media:content[^>]+url=["']([^"']+)["']/i)
+      || item.match(/<enclosure[^>]+url=["']([^"']+)["']/i)
+      || item.match(/<media:thumbnail[^>]+url=["']([^"']+)["']/i);
+    const imageContent = decodeHtml(stripCDATA(atom ? element('content') : item));
+    const urlToImage = decodeEntities(imgM ? imgM[1] : (imageContent.match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || null);
     return [{ title, description, url, urlToImage, publishedAt, source: { name: sourceName }, isLive: checkIsLive(publishedAt) }];
   });
+  const hasEntries = atom ? /<(?:[\w.-]+:)?entry\b/i.test(text) : /<item\b/i.test(text);
+  if (hasEntries && articles.length === 0) throw new Error('Invalid news articles');
+  return articles;
 }
 
 function sharesWords(t1: string, t2: string): boolean {
