@@ -1,41 +1,34 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { fetchJson } from '@/lib/dataRequest';
+
+import { useEffect, useState } from 'react';
 import { extractTickers } from '@/lib/stockMentions';
 import StockNewsModal from './StockNewsModal';
 
 interface QuoteData { symbol: string; c: number; dp: number; }
 
 export default function StockPills({ headline, description }: { headline: string; description: string }) {
-  const tickerKey = useMemo(
-    () => extractTickers(headline, description).join(','),
-    [headline, description],
-  );
-  const tickers = tickerKey ? tickerKey.split(',') : [];
+  const symbols = extractTickers(headline, description).join(',');
+  return symbols ? <QuotePills key={symbols} symbols={symbols} /> : null;
+}
+
+function QuotePills({ symbols }: { symbols: string }) {
+  const tickers = symbols.split(',');
   const [quotes, setQuotes] = useState<QuoteData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!tickerKey) return;
     const controller = new AbortController();
-    const request = window.setTimeout(() => {
-      setLoading(true);
-      fetch(`/api/market?type=multi-quote&symbols=${tickerKey}`, { signal: controller.signal })
-        .then(r => r.json())
-        .then(data => {
-          setQuotes(Array.isArray(data) ? data : []);
-          setLoading(false);
-        })
-        .catch(() => {
-          if (!controller.signal.aborted) setLoading(false);
-        });
-    }, 0);
-    return () => {
-      window.clearTimeout(request);
-      controller.abort();
-    };
-  }, [tickerKey]);
+    fetchJson(`/api/market?type=multi-quote&symbols=${symbols}`, { signal: controller.signal }, 12000)
+      .then(data => {
+        if (controller.signal.aborted) return;
+        setQuotes(Array.isArray(data) ? data : []); setLoading(false);
+      })
+      .catch(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [symbols]);
 
   if (tickers.length === 0) return null;
 

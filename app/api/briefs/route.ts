@@ -1,7 +1,19 @@
 import { NextResponse } from 'next/server';
+import { createHash } from 'node:crypto';
+import { isIP } from 'node:net';
+import { getBriefsRateLimit } from '@/lib/briefsRateLimit';
 
 
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
+const REQUEST_TIMEOUT_MS = 12_000;
+class BriefsTimeout extends Error {}
+
+function unavailable(status: number, message: string, retryAfter?: number) {
+  return NextResponse.json({ status: 'unavailable', briefs: [], message }, {
+    status, headers: { 'Cache-Control': 'no-store',
+      ...(retryAfter === undefined ? {} : { 'Retry-After': String(Math.max(1, Math.ceil(retryAfter / 1000))) }) },
+  });
+}
 
 
 interface PoolArticle {
@@ -50,17 +62,34 @@ export async function GET(request: Request) {
   }
   const apiKey = process.env.GROQ_API_KEY;
   const debug = new URL(request.url).searchParams.get('debug') === '1';
-  if (!apiKey) return NextResponse.json({ status: 'ok', briefs: [], keyPresent: false });
+  if (!apiKey) return unavailable(503, 'AI summaries are temporarily unavailable. Please try again.');
 
-  try {
-    const newsRes = await fetch(`${baseUrl()}/api/news?region=us`, { next: { revalidate: 300 } });
+  const forwarded = process.env.VERCEL === '1' ? request.headers.get('x-vercel-forwarded-for')?.split(',')[0].trim() : undefined;
+  const client = createHash('sha256').update(forwarded && isIP(forwarded) ? forwarded : 'unknown-client').digest('hex');
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  function ensureActive() { if (controller.signal.aborted) throw new BriefsTimeout(); }
+  async function generate() {
+    let retryAfter: number;
+    try { retryAfter = await getBriefsRateLimit().limit(client); }
+    catch {
+      ensureActive();
+      return unavailable(503, 'AI summaries are temporarily unavailable. Please try again.', 30_000);
+    }
+    ensureActive();
+    if (retryAfter > 0) return unavailable(429, 'AI summaries are busy. Please try again shortly.', retryAfter);
+
+    const newsRes = await fetch(`${baseUrl()}/api/news?region=us`, { signal: controller.signal, redirect: 'error', next: { revalidate: 300 } });
+    if (!newsRes.ok) throw new Error('News unavailable');
     const news = await newsRes.json();
+    ensureActive();
+    if (!Array.isArray(news?.articles)) throw new Error('Invalid news response');
     const articles: PoolArticle[] = (news.articles || [])
-      .filter((a: PoolArticle) => a.title && a.title !== '[Removed]')
+      .filter((a: PoolArticle) => a && typeof a.title === 'string' && a.title && a.title !== '[Removed]' && typeof a.url === 'string')
       .slice(0, 30);
 
     if (articles.length === 0) {
-      return NextResponse.json(debug ? { status: 'debug', keyPresent: true, poolSize: 0, briefs: [] } : { status: 'ok', briefs: [] });
+      return NextResponse.json(debug ? { status: 'debug', keyPresent: true, poolSize: 0, briefs: [] } : { status: 'ok', briefs: [] }, { headers: { 'Cache-Control': 'no-store' } });
     }
 
     const numbered = articles
@@ -77,7 +106,9 @@ Respond with ONLY a JSON object with a "briefs" array and no prose. Each array e
 Headlines:
 ${numbered}`;
 
+    ensureActive();
     const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      signal: controller.signal, redirect: 'error',
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
       body: JSON.stringify({
@@ -90,13 +121,15 @@ ${numbered}`;
       }),
     });
 
+    if (!res.ok) throw new Error('AI provider unavailable');
     if (debug) {
       const raw = await res.text();
-      return NextResponse.json({ status: 'debug', keyPresent: true, poolSize: articles.length, groqStatus: res.status, rawLen: raw.length });
+      ensureActive();
+      return NextResponse.json({ status: 'debug', keyPresent: true, poolSize: articles.length, groqStatus: res.status, rawLen: raw.length }, { headers: { 'Cache-Control': 'no-store' } });
     }
-    if (!res.ok) return NextResponse.json({ status: 'ok', briefs: [] });
 
     const data = await res.json();
+    ensureActive();
     const content = data?.choices?.[0]?.message?.content || '';
     const parsed = extractJson(content);
     const arr: { headline?: string; summary?: string; indices?: number[] }[] =
@@ -104,8 +137,10 @@ ${numbered}`;
 
     const briefs: Brief[] = [];
     for (const b of arr) {
-      if (!b || !b.headline || !b.summary || !Array.isArray(b.indices)) continue;
+      if (!b || typeof b.headline !== 'string' || !b.headline.trim()
+        || typeof b.summary !== 'string' || !b.summary.trim() || !Array.isArray(b.indices)) continue;
       const sources = b.indices
+        .filter((i) => Number.isInteger(i) && i >= 0 && i < articles.length)
         .map((i) => articles[i])
         .filter(Boolean)
         .map((a) => ({ name: a.source?.name || 'Source', url: a.url }));
@@ -115,8 +150,21 @@ ${numbered}`;
       briefs.push({ headline: b.headline.trim(), summary: b.summary.trim(), sources: uniqSources });
     }
 
-    return NextResponse.json({ status: 'ok', briefs: briefs.slice(0, 10) });
-  } catch {
-    return NextResponse.json({ status: 'ok', briefs: [] });
+    return NextResponse.json({ status: 'ok', briefs: briefs.slice(0, 10) }, { headers: { 'Cache-Control': 'no-store' } });
+  }
+  try {
+    return await Promise.race([
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new BriefsTimeout()); controller.abort();
+        }, REQUEST_TIMEOUT_MS);
+      }),
+      generate(),
+    ]);
+  } catch (error) {
+    if (error instanceof BriefsTimeout) return unavailable(504, 'AI summaries timed out. Please try again.', 30_000);
+    return unavailable(502, 'AI summaries are temporarily unavailable. Please try again.');
+  } finally {
+    clearTimeout(timer);
   }
 }

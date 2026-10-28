@@ -1,7 +1,8 @@
+import { checkDataRateLimit } from '@/lib/dataRateLimit';
 import { NextResponse } from 'next/server';
+import { fetchMarketQuote, marketQuoteList } from '@/lib/marketQuotes';
 
 const KEY = process.env.FINNHUB_KEY;
-const BASE = 'https://finnhub.io/api/v1';
 
 const PENNY_STOCKS = [
   { symbol: 'SNDL', name: 'Sundial Growers' },
@@ -21,29 +22,28 @@ const PENNY_STOCKS = [
   { symbol: 'CTRM', name: 'Castor Maritime' },
 ];
 
-export async function GET() {
-  if (!KEY) return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
+  const limited = await checkDataRateLimit(request, 'market', 15);
+  if (limited) return limited;
+  if (!KEY) return NextResponse.json({ error: 'Market data service is not configured.' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
 
   const results = await Promise.allSettled(
     PENNY_STOCKS.map(async ({ symbol, name }) => {
-      const res = await fetch(`${BASE}/quote?symbol=${symbol}&token=${KEY}`, { next: { revalidate: 60 } });
-      const data = await res.json();
+      const data = await fetchMarketQuote(symbol, KEY, 60);
       return {
         symbol,
         name,
-        c: data.c ?? 0,
-        d: data.d ?? 0,
-        dp: data.dp ?? 0,
-        h: data.h ?? 0,
-        l: data.l ?? 0,
-        pc: data.pc ?? 0,
+        c: data.c,
+        d: data.d,
+        dp: data.dp,
+        h: data.h,
+        l: data.l,
+        pc: data.pc,
       };
     })
   );
 
-  const quotes = results
-    .filter(r => r.status === 'fulfilled')
-    .map(r => (r as PromiseFulfilledResult<{ symbol: string; name: string; c: number; d: number; dp: number; h: number; l: number; pc: number }>).value);
-
-  return NextResponse.json(quotes);
+  return marketQuoteList(results);
 }

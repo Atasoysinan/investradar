@@ -1,5 +1,7 @@
 'use client';
 
+import { fetchJson } from '@/lib/dataRequest';
+
 import { useEffect, useState } from 'react';
 import StockNewsModal from './StockNewsModal';
 
@@ -17,10 +19,11 @@ export default function TickerBar() {
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     const load = async () => {
       try {
-        const res = await fetch(`/api/market?symbols=${SYMBOLS.join(',')}`);
-        const data = await res.json();
+        const data = await fetchJson(`/api/market?symbols=${SYMBOLS.join(',')}`, { signal: controller.signal }, 12000);
+        if (controller.signal.aborted) return;
         if (Array.isArray(data)) {
           const valid = data.filter((q: Quote) => q.c > 0);
           if (valid.length > 0) setQuotes(valid);
@@ -32,7 +35,7 @@ export default function TickerBar() {
     };
     load();
     const interval = setInterval(load, 60_000);
-    return () => clearInterval(interval);
+    return () => { clearInterval(interval); controller.abort(); };
   }, []);
 
   if (quotes.length === 0) return null;

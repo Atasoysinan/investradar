@@ -1,9 +1,11 @@
-import Link from 'next/link';
+import { detailQuote, detailProfile, detailArticles, detailPrice, detailDirection, detailPercent } from '@/lib/detailData';
+import { loadStockMarket, loadDetailNews } from '@/lib/detailRequests';
 import Image from 'next/image';
+import Link from 'next/link';
 
-const NEWS_DOMAINS = 'reuters.com,apnews.com,wsj.com,ft.com,cnbc.com,bloomberg.com,forbes.com,marketwatch.com,businessinsider.com,seekingalpha.com,benzinga.com';
 
 function timeAgo(dateStr: string) {
+  if (!dateStr) return 'Date unavailable';
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m ago`;
@@ -12,14 +14,7 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-interface Article {
-  title: string;
-  description: string;
-  url: string;
-  urlToImage: string;
-  publishedAt: string;
-  source: { name: string };
-}
+export const dynamic = 'force-dynamic';
 
 export default async function StockDetailPage({
   params,
@@ -29,36 +24,17 @@ export default async function StockDetailPage({
   const { ticker } = await params;
   const symbol = ticker.toUpperCase();
 
-  const finnhubKey = process.env.FINNHUB_KEY;
-  const newsKey = process.env.NEWSAPI_KEY;
-
-  const [quoteRes, profileRes] = await Promise.allSettled([
-    fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`, {
-      next: { revalidate: 60 },
-    }).then(r => r.json()),
-    fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${finnhubKey}`, {
-      next: { revalidate: 3600 },
-    }).then(r => r.json()),
-  ]);
-
-  const quote = quoteRes.status === 'fulfilled' ? quoteRes.value : null;
-  const profile = profileRes.status === 'fulfilled' ? profileRes.value : null;
+  const market = await loadStockMarket(symbol);
+  const quote = detailQuote(market.quote);
+  const profile = detailProfile(market.profile);
 
   const companyName = profile?.name || '';
   const newsQuery = companyName
     ? `${companyName} stock ${symbol}`
     : `${symbol} stock market`;
 
-  const newsRes = await fetch(
-    `https://newsapi.org/v2/everything?q=${encodeURIComponent(newsQuery)}&domains=${NEWS_DOMAINS}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${newsKey}`,
-    { next: { revalidate: 300 } }
-  ).then(r => r.json()).catch(() => null);
-
-  const articles: Article[] = newsRes?.articles
-    ? newsRes.articles.filter((a: Article) => a.title !== '[Removed]')
-    : [];
-
-  const hasPrice = quote && quote.c > 0;
+  const news = market.read ? await loadDetailNews(newsQuery, market.read) : { data: null, issue: '' };
+  const articles = detailArticles(news.data);
 
   return (
     <div className="min-h-screen bg-[#f5f6f7] text-gray-900">
@@ -76,6 +52,7 @@ export default async function StockDetailPage({
       </header>
 
       <div className="max-w-4xl mx-auto px-4 py-6">
+        {market.issue && <p role="alert" className="mb-4 text-sm text-gray-600">{market.issue}</p>}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">{symbol}</h1>
           {profile?.name && <p className="text-gray-600 mt-1 text-lg">{profile.name}</p>}
@@ -87,37 +64,34 @@ export default async function StockDetailPage({
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
-          {hasPrice ? (
-            <>
-              <div className="flex items-end gap-4 mb-5 flex-wrap">
-                <span className="text-4xl font-bold text-gray-900">
-                  ${quote.c.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-                <span className={`text-xl font-semibold ${quote.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {quote.d >= 0 ? '+' : ''}{quote.d.toFixed(2)}&nbsp;
-                  ({quote.dp >= 0 ? '▲' : '▼'} {Math.abs(quote.dp).toFixed(2)}%)
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-6 text-sm border-t border-gray-100 pt-4">
-                <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">High</p>
-                  <p className="font-semibold text-gray-800">${quote.h.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Low</p>
-                  <p className="font-semibold text-gray-800">${quote.l.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Prev Close</p>
-                  <p className="font-semibold text-gray-800">${quote.pc.toFixed(2)}</p>
-                </div>
-              </div>
-            </>
-          ) : (
-            <p className="text-gray-500 text-sm">Market closed or data unavailable for {symbol}.</p>
-          )}
+          {quote.c === null && <p role="status" className="mb-4 text-gray-500 text-sm">Price data is temporarily unavailable for {symbol}.</p>}
+          <div className="flex items-end gap-4 mb-5 flex-wrap">
+            <span className="text-4xl font-bold text-gray-900">
+              {detailPrice(quote.c)}
+            </span>
+            <span className="text-xl font-semibold">
+              <span className={detailDirection(quote.d)}>{quote.d === null ? '—' : `${quote.d > 0 ? '+' : ''}${quote.d.toFixed(2)}`}</span>
+              &nbsp;<span className={detailDirection(quote.dp)}>({detailPercent(quote.dp)})</span>
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-6 text-sm border-t border-gray-100 pt-4">
+            <div>
+              <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">High</p>
+              <p className="font-semibold text-gray-800">{detailPrice(quote.h)}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Low</p>
+              <p className="font-semibold text-gray-800">{detailPrice(quote.l)}</p>
+            </div>
+            <div>
+              <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Prev Close</p>
+              <p className="font-semibold text-gray-800">{detailPrice(quote.pc)}</p>
+            </div>
+          </div>
+
         </div>
 
+        {news.issue && <p role="status" className="mb-4 text-sm text-gray-600">{news.issue} News could not be loaded.</p>}
         {articles.length > 0 && (
           <div>
             <h2 className="text-xl font-bold text-gray-900 mb-4">Latest News</h2>
@@ -145,13 +119,11 @@ export default async function StockDetailPage({
                     )}
                   </div>
                   {a.urlToImage && (
-                    <Image
+                    <Image unoptimized width={96} height={72}
                       src={a.urlToImage}
                       alt=""
-                      width={96}
-                      height={72}
-                      sizes="96px"
-                      className="w-24 h-[72px] object-cover rounded flex-shrink-0 hidden sm:block"
+                      className="w-24 h-18 object-cover rounded flex-shrink-0 hidden sm:block"
+                      style={{ height: '72px' }}
                     />
                   )}
                 </a>

@@ -1,0 +1,9 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {ETF_INFO,ETF_CATEGORIES} from '../lib/etfCatalog.ts';
+import {etfRoute} from './support/etf-route.mjs';
+const expected={SPY:'US Equity',QQQ:'US Equity',VTI:'US Equity',VOO:'US Equity',IWM:'US Equity',VNQ:'Real Estate',EWG:'European',EWU:'European',EWQ:'European',EWI:'European',EWJ:'Asia Pacific',EFA:'Developed ex-US',VEA:'Developed ex-US',EEM:'Emerging Markets',IEMG:'Emerging Markets',ACWI:'Global Equity',GLD:'Commodities',SLV:'Commodities',TLT:'Bonds',HYG:'Bonds'};
+test('ETF response preserves all 30 symbols with corrected category metadata',async()=>{const h=etfRoute();const r=await h.run();assert.equal(r.status,200);const rows=await r.json();assert.equal(rows.length,30);assert.equal(new Set(rows.map(r=>r.symbol)).size,30);for(const [symbol,category] of Object.entries(expected))assert.equal(rows.find(row=>row.symbol===symbol).category,category);assert.deepEqual(h.admissions,[{group:'market',cost:30}]);});
+test('every category is selectable and all thematic funds retain their category',()=>{assert.equal(new Set(ETF_CATEGORIES).size,ETF_CATEGORIES.length);for(const value of Object.values(ETF_INFO))assert.ok(ETF_CATEGORIES.includes(value.category));for(const symbol of ['ARKK','ARKG','ARKW','BOTZ','ROBO','ICLN','LIT','HACK','FINX','SKYY'])assert.equal(ETF_INFO[symbol].category,'Thematic');});
+test('European includes only the four European country funds',()=>{assert.deepEqual(Object.entries(ETF_INFO).filter(([,v])=>v.category==='European').map(([s])=>s),['EWG','EWU','EWQ','EWI']);});
+test('existing rate gate and partial provider recovery remain intact',async()=>{const blocked=etfRoute({blocked:true});assert.equal((await blocked.run()).status,429);assert.equal(blocked.calls.length,0);const partial=etfRoute({failure:true});const r=await partial.run();assert.equal(r.headers.get('x-market-data-partial'),'true');assert.equal((await r.json()).length,29);});

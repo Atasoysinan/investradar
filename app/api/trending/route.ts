@@ -1,6 +1,9 @@
+import { checkDataRateLimit } from '@/lib/dataRateLimit';
+import { createDataRequest, fetchJson } from '@/lib/dataRequest';
 import { NextResponse } from 'next/server';
+import { socialRecord } from '@/lib/socialData';
 
-export const revalidate = 300;
+export const dynamic = 'force-dynamic';
 
 const CRYPTO_TICKER_MAP: Record<string, string> = {
   'BTC-USD': 'bitcoin',
@@ -33,13 +36,6 @@ const NOISE_WORDS = new Set([
   'DD','TA','PE','EV','AI','ML','US','EU','UK','UP','DOWN','AM','PM',
 ]);
 
-const MOCK_REDDIT = [
-  { title: '$NVDA hits all-time high — is $200 the next target?', score: 4821, subreddit: 'r/wallstreetbets', tickers: ['NVDA'], url: 'https://reddit.com/r/wallstreetbets' },
-  { title: '$TSLA earnings beat: what does this mean for EV sector?', score: 3102, subreddit: 'r/stocks', tickers: ['TSLA'], url: 'https://reddit.com/r/stocks' },
-  { title: 'Why $AAPL is still the safest long-term hold in tech', score: 2475, subreddit: 'r/investing', tickers: ['AAPL'], url: 'https://reddit.com/r/investing' },
-  { title: '$META ad revenue smashes expectations — AI paying off', score: 1893, subreddit: 'r/stocks', tickers: ['META'], url: 'https://reddit.com/r/stocks' },
-  { title: '$AMD vs $NVDA: which chip stock wins the next decade?', score: 987, subreddit: 'r/wallstreetbets', tickers: ['AMD', 'NVDA'], url: 'https://reddit.com/r/wallstreetbets' },
-];
 
 function extractTickers(text: string): string[] {
   const seen = new Set<string>();
@@ -55,41 +51,82 @@ function extractTickers(text: string): string[] {
   return tickers.slice(0, 5);
 }
 
-async function fetchReddit(subreddit: string) {
-  const res = await fetch(
+function finiteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function positivePrice(value: unknown): number | null {
+  const price = finiteNumber(value);
+  return price !== null && price > 0 ? price : null;
+}
+
+async function fetchReddit(subreddit: string, read: typeof fetchJson) {
+  const json = await read(
     `https://www.reddit.com/r/${subreddit}/hot.json?limit=10&t=day`,
     { headers: { 'User-Agent': 'InvestRadar/1.0 (https://investradar.live)' }, cache: 'no-store' }
   );
-  if (!res.ok) throw new Error(`Reddit ${subreddit} returned ${res.status}`);
-  const json = await res.json();
-  const posts: RedditChild[] = json?.data?.children || [];
-  if (!posts.length) throw new Error(`Reddit ${subreddit} returned no posts`);
-  return posts;
+  if (socialRecord(json).error) throw new Error('Reddit unavailable');
+  const posts: unknown = socialRecord(socialRecord(json).data).children;
+  if (!Array.isArray(posts)) throw new Error('Invalid Reddit response');
+  return posts.filter((post): post is RedditChild => {
+    const row = socialRecord(socialRecord(post).data);
+    return typeof row.title === 'string' && row.title.trim().length > 0
+      && typeof row.score === 'number' && Number.isFinite(row.score)
+      && typeof row.subreddit === 'string' && /^[A-Za-z0-9_]+$/.test(row.subreddit)
+      && typeof row.permalink === 'string' && row.permalink.startsWith('/r/');
+  });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const limited = await checkDataRateLimit(request, 'market', 14);
+  if (limited) return limited;
+  const read = createDataRequest();
   const finnhubKey = process.env.FINNHUB_KEY;
 
   const [yahooResult, redditRaw, coinsResult] = await Promise.allSettled([
-    fetch('https://query1.finance.yahoo.com/v1/finance/trending/US?count=10', {
+    read('https://query1.finance.yahoo.com/v1/finance/trending/US?count=10', {
       headers: { 'User-Agent': 'Mozilla/5.0' },
       cache: 'no-store',
-    }).then(r => r.json()),
-    fetchReddit('stocks').catch(() => fetchReddit('wallstreetbets')),
-    fetch(
+    }).then(data => {
+      const finance = socialRecord(socialRecord(data).finance);
+      const results = finance.result;
+      if (finance.error || !Array.isArray(results)
+        || (results.length > 0 && !Array.isArray(socialRecord(results[0]).quotes))) throw new Error('Invalid trending response');
+      return data;
+    }),
+    fetchReddit('stocks', read).catch(() => fetchReddit('wallstreetbets', read)),
+    read(
       'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false',
       { headers: { 'Accept': 'application/json' }, cache: 'no-store' }
-    ).then(r => r.json()),
+    ).then(data => {
+      if (!Array.isArray(data)) throw new Error('Invalid coins response');
+      return data;
+    }),
   ]);
+
+  const availability = {
+    trending: yahooResult.status === 'fulfilled' ? 'ok' : 'unavailable',
+    reddit: redditRaw.status === 'fulfilled' ? 'ok' : 'unavailable',
+    coins: coinsResult.status === 'fulfilled' ? 'ok' : 'unavailable',
+  };
+  if ([yahooResult, redditRaw, coinsResult].every(result => result.status === 'rejected')) {
+    return NextResponse.json({ trending: [], reddit: [], coins: [], availability,
+      status: 'unavailable', message: 'Trending data is temporarily unavailable. Please try again.' }, {
+      status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '30' },
+    });
+  }
 
   // Build trending list with smart per-type price fetching
   const trending: { symbol: string; rank: number; price: number | null; dp: number | null; isCrypto: boolean; cryptoId?: string }[] = [];
   if (yahooResult.status === 'fulfilled') {
     const VALID_TICKER = /^[A-Z]{1,5}(-USD)?$/;
-    const symbols: string[] = (yahooResult.value?.finance?.result?.[0]?.quotes || [])
-      .map((q: { symbol: string }) => q.symbol)
-      .filter((s: string) => VALID_TICKER.test(s) || !!CRYPTO_TICKER_MAP[s])
-      .slice(0, 10);
+    const results = socialRecord(socialRecord(yahooResult.value).finance).result;
+    const quotes = Array.isArray(results) ? socialRecord(results[0]).quotes : null;
+    const symbols: string[] = Array.isArray(quotes) ? quotes.flatMap(value => {
+      const symbol = socialRecord(value).symbol;
+      return typeof symbol === 'string' && (VALID_TICKER.test(symbol) || Object.hasOwn(CRYPTO_TICKER_MAP, symbol))
+        ? [symbol] : [];
+    }).slice(0, 10) : [];
 
     // Categorise each symbol
     const cryptoSymbols = symbols.filter(s => CRYPTO_TICKER_MAP[s]);
@@ -98,29 +135,32 @@ export async function GET() {
 
     // Batch-fetch crypto prices from CoinGecko in a single call
     const cgIds = cryptoSymbols.map(s => CRYPTO_TICKER_MAP[s]);
-    let cgPrices: Record<string, { usd: number; usd_24h_change: number }> = {};
+    let cgPrices: Record<string, unknown> = {};
     if (cgIds.length > 0) {
       try {
-        const cgRes = await fetch(
+        const cgRes = await read(
           `https://api.coingecko.com/api/v3/simple/price?ids=${cgIds.join(',')}&vs_currencies=usd&include_24hr_change=true`,
           { headers: { 'Accept': 'application/json' }, cache: 'no-store' }
         );
-        if (cgRes.ok) cgPrices = await cgRes.json();
+        cgPrices = socialRecord(cgRes);
       } catch { /* leave cgPrices empty */ }
     }
 
     // Fetch Finnhub prices for US stocks in parallel
     const finnhubResults = await Promise.allSettled(
       usStockSymbols.map(symbol =>
-        fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`, {
+        read(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${finnhubKey}`, {
           cache: 'no-store',
-        }).then(r => r.json())
+        })
       )
     );
-    const finnhubMap: Record<string, { c: number; dp: number }> = {};
+    const finnhubMap: Record<string, { c: number; dp: number | null }> = {};
     usStockSymbols.forEach((symbol, i) => {
       const q = finnhubResults[i].status === 'fulfilled' ? finnhubResults[i].value : null;
-      if (q?.c > 0) finnhubMap[symbol] = q;
+      const row = socialRecord(q);
+      if (typeof row.c === 'number' && Number.isFinite(row.c) && row.c > 0) {
+        finnhubMap[symbol] = { c: row.c, dp: finiteNumber(row.dp) };
+      }
     });
 
     // Assemble trending items in original Yahoo rank order
@@ -133,8 +173,9 @@ export async function GET() {
       let dp: number | null = null;
 
       if (isCrypto && cryptoId && cgPrices[cryptoId]) {
-        price = cgPrices[cryptoId].usd ?? null;
-        dp = cgPrices[cryptoId].usd_24h_change ?? null;
+        const quote = socialRecord(cgPrices[cryptoId]);
+        price = positivePrice(quote.usd);
+        dp = finiteNumber(quote.usd_24h_change);
       } else if (!isForeign && finnhubMap[symbol]) {
         price = finnhubMap[symbol].c;
         dp = finnhubMap[symbol].dp;
@@ -161,21 +202,22 @@ export async function GET() {
       url: `https://reddit.com${p.data.permalink}`,
     }));
   } else {
-    reddit = MOCK_REDDIT;
+    reddit = [];
   }
 
-  const coins: { id: string; symbol: string; name: string; current_price: number; price_change_percentage_24h: number }[] = [];
+  const coins: { id: string; symbol: string; name: string; current_price: number | null; price_change_percentage_24h: number | null }[] = [];
   if (coinsResult.status === 'fulfilled' && Array.isArray(coinsResult.value)) {
-    for (const c of coinsResult.value.slice(0, 10)) {
-      coins.push({
-        id: c.id,
-        symbol: c.symbol,
-        name: c.name,
-        current_price: c.current_price,
-        price_change_percentage_24h: c.price_change_percentage_24h,
-      });
+    for (const value of coinsResult.value) {
+      const c = socialRecord(value);
+      if (typeof c.id !== 'string' || !c.id.trim() || typeof c.symbol !== 'string' || !c.symbol.trim()
+        || typeof c.name !== 'string' || !c.name.trim()) continue;
+      coins.push({ id: c.id, symbol: c.symbol, name: c.name,
+        current_price: positivePrice(c.current_price),
+        price_change_percentage_24h: finiteNumber(c.price_change_percentage_24h) });
+      if (coins.length >= 10) break;
     }
   }
 
-  return NextResponse.json({ trending, reddit, coins });
+  return NextResponse.json({ trending, reddit, coins, availability }, { headers: { 'Cache-Control': 'no-store',
+    ...([yahooResult, redditRaw, coinsResult].some(result => result.status === 'rejected') ? { 'X-Market-Data-Partial': 'true' } : {}) } });
 }

@@ -1,7 +1,9 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import { fetchData, fetchJson, DataRequestError, DataRequestTimeout } from '@/lib/dataRequest';
+import { decodeHtml } from '@/lib/decodeHtml';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import MarketPulseDashboard from '@/components/MarketPulseDashboard';
@@ -54,19 +56,9 @@ function hasKeyword(text: string, keyword: string) {
   return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, 'i').test(text);
 }
 
-function decodeHtml(value = '') {
-  return value
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
-    .replace(/&#(\d+);/g, (_, decimal: string) => String.fromCodePoint(parseInt(decimal, 10)))
-    .replace(/&apos;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
-}
-
 function timeAgo(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime();
+  const diff = Date.now() - Date.parse(dateStr);
+  if (!Number.isFinite(diff) || diff < 0) return 'Date unavailable';
   const minutes = Math.max(0, Math.floor(diff / 60000));
   if (minutes < 60) return `${minutes}m ago`;
   const hours = Math.floor(minutes / 60);
@@ -95,55 +87,92 @@ function intelligenceScore(article: Article) {
 
 function ArticleImage({ article, sizes, priority = false }: { article: Article; sizes: string; priority?: boolean }) {
   return (
-    <Image
+    <Image unoptimized
       src={articleImage(article)}
       alt={decodeHtml(article.title)}
       fill
       priority={priority}
       sizes={sizes}
       className="object-cover transition-transform duration-500 group-hover:scale-[1.025]"
-      onError={event => { event.currentTarget.src = DEFAULT_FALLBACK; }}
+      onError={event => {
+        if (event.currentTarget.getAttribute('src') === DEFAULT_FALLBACK) event.currentTarget.style.display = 'none';
+        else event.currentTarget.src = DEFAULT_FALLBACK;
+      }}
     />
   );
 }
 
 export default function Home() {
   const [articles, setArticles] = useState<Article[]>([]);
-  const [briefs, setBriefs] = useState<Brief[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [briefs, setBriefs] = useState<Brief[]>([]);
+  const [briefsError, setBriefsError] = useState('');
   const [category, setCategory] = useState('briefing');
   const [query, setQuery] = useState('');
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [partialNews, setPartialNews] = useState(false);
 
-  const loadNews = useCallback(async (search = '') => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await fetch(search ? `/api/news?q=${encodeURIComponent(search)}` : '/api/news?region=us');
-      const data = await response.json();
-      if (!response.ok || data.status === 'error') throw new Error(data.message || 'News is unavailable');
-      setArticles((data.articles || []).filter((article: Article) => article.title && article.title !== '[Removed]'));
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'News is unavailable');
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    let active = true;
+    let latestRequest = 0;
+    let controller: AbortController | null = null;
+    async function fetchNews() {
+      const request = ++latestRequest;
+      controller?.abort();
+      controller = new AbortController();
+      const isCurrent = () => active && request === latestRequest;
+      try {
+        let url = '/api/news?';
+        if (query) {
+          url += `q=${encodeURIComponent(query)}`;
+        } else {
+          url += 'region=us';
+        }
+        const { data, headers } = await fetchData(url, { signal: controller.signal }, 12000);
+        if (data.status !== 'ok' || !Array.isArray(data.articles)) throw new Error('Invalid news response');
+        if (!isCurrent()) return;
+        setError('');
+        setPartialNews(headers.get('X-News-Data-Partial') === 'true');
+        setArticles(data.articles.filter((a: Article) => a && a.title !== '[Removed]'));
+      } catch (error) {
+        if (isCurrent()) setError(error instanceof DataRequestTimeout
+          ? 'News took too long. Please try again.' : 'News is temporarily unavailable. Please try again.');
+      } finally {
+        if (isCurrent()) setLoading(false);
+      }
     }
-  }, []);
+    void fetchNews();
+    const id = setInterval(() => { setLoading(true); setError(''); void fetchNews(); }, 300000);
+    return () => { active = false; controller?.abort(); clearInterval(id); };
+  }, [query, refreshVersion]);
 
   useEffect(() => {
     const controller = new AbortController();
-    const initialLoad = window.setTimeout(() => { void loadNews(); }, 0);
-    fetch('/api/briefs', { signal: controller.signal })
-      .then(response => response.json())
-      .then(data => { if (Array.isArray(data.briefs)) setBriefs(data.briefs); })
-      .catch(() => undefined);
-    const refresh = window.setInterval(() => { void loadNews(); }, 300000);
-    return () => {
-      controller.abort();
-      window.clearTimeout(initialLoad);
-      window.clearInterval(refresh);
-    };
-  }, [loadNews]);
+    async function loadBriefs() {
+      try {
+        const data = await fetchJson('/api/briefs', { signal: controller.signal }, 15000);
+        if (controller.signal.aborted) return;
+        if (data.status !== 'ok' || !Array.isArray(data.briefs)) {
+          setBriefs([]);
+          setBriefsError('AI summaries are temporarily unavailable. Please try again.');
+          return;
+        }
+        setBriefs(data.briefs); setBriefsError('');
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setBriefs([]);
+          setBriefsError(error instanceof DataRequestTimeout || (error instanceof DataRequestError && error.status === 504)
+            ? 'AI summaries timed out. Please try again.'
+            : error instanceof DataRequestError && error.status === 429
+              ? 'AI summaries are busy. Please try again shortly.'
+              : 'AI summaries are temporarily unavailable. Please try again.');
+        }
+      }
+    }
+    void loadBriefs();
+    return () => controller.abort();
+  }, []);
 
   const visibleArticles = useMemo(() => {
     const active = CATEGORIES.find(item => item.value === category) || CATEGORIES[0];
@@ -173,9 +202,34 @@ export default function Home() {
     ? briefs.filter(item => item.headline !== decodeHtml(hero?.title || '')).slice(0, 5)
     : latest.slice(0, 5).map(article => ({ headline: decodeHtml(article.title), summary: '', sources: [{ name: article.source?.name || 'Source', url: article.url }] }));
 
+  const marketBrief = (
+            <aside className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white">
+              <div className="flex items-center justify-between border-b border-[#e5e7eb] px-4 py-4">
+                <h2 className="text-[19px] font-normal tracking-[-0.025em]">Today&apos;s Market Brief</h2>
+                <span className="text-[11px] font-semibold text-[#1167ee]">Essential</span>
+              </div>
+              <ol className="divide-y divide-[#e5e7eb]">
+                {briefItems.map((brief, index) => (
+                  <li key={`${brief.headline}-${index}`} className="grid grid-cols-[26px_7px_1fr] gap-2 px-4 py-3">
+                    <span className="font-mono text-[11px] text-[#73808a]">{String(index + 1).padStart(2, '0')}</span>
+                    <span className={`mt-1.5 h-2 w-2 rounded-full ${index < 2 ? 'bg-[#28b979]' : index === 2 ? 'bg-[#ff5a52]' : 'bg-[#e3a51a]'}`} />
+                    <div>
+                      <p className="text-[12px] font-normal leading-[1.3] text-[#0c0a08] line-clamp-2">{decodeHtml(brief.headline)}</p>
+                      <div className="mt-1.5 flex gap-2">
+                        {brief.sources.slice(0, 1).map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold text-[#1167ee] hover:underline">{source.name}</a>)}
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </aside>
+  );
+
   function submitSearch(event: FormEvent) {
     event.preventDefault();
-    void loadNews(query.trim());
+    setLoading(true);
+    setError('');
+    setRefreshVersion(version => version + 1);
   }
 
   return (
@@ -189,7 +243,7 @@ export default function Home() {
 
           <nav aria-label="Primary navigation" className="hidden h-[74px] items-stretch gap-5 lg:flex xl:gap-7">
             {CATEGORIES.map(item => (
-              <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`border-b-2 px-0 text-[13px] font-medium tracking-[-0.01em] transition-colors ${category === item.value && !query ? 'border-[#1167ee] text-[#0c0a08]' : 'border-transparent text-[#343434] hover:text-[#1167ee]'}`}>
+              <button key={item.value} onClick={() => { setCategory(item.value); if (query) { setLoading(true); setError(''); setQuery(''); } }} className={`border-b-2 px-0 text-[13px] font-medium tracking-[-0.01em] transition-colors ${category === item.value && !query ? 'border-[#1167ee] text-[#0c0a08]' : 'border-transparent text-[#343434] hover:text-[#1167ee]'}`}>
                 {item.label}
               </button>
             ))}
@@ -198,7 +252,7 @@ export default function Home() {
           <form onSubmit={submitSearch} className="hidden items-center gap-2 md:flex">
             <label className="relative block">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7a8791]">⌕</span>
-              <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search companies, topics, markets…" className="h-11 w-52 rounded-[10px] border border-[#e5e7eb] bg-white pl-9 pr-3 text-xs outline-none transition-colors focus:border-[#0c0a08] xl:w-64" />
+              <input value={query} onChange={event => { setLoading(true); setError(''); setQuery(event.target.value); }} placeholder="Search markets, companies, topics..." className="h-11 w-52 rounded-[10px] border border-[#e5e7eb] bg-white pl-9 pr-3 text-xs outline-none transition-colors focus:border-[#0c0a08] xl:w-64" />
             </label>
           </form>
           <button aria-label="Open watchlist" className="hidden h-11 w-11 place-items-center rounded-[10px] border border-[#e5e7eb] bg-white text-xl transition-colors hover:border-[#0c0a08] sm:grid">☆</button>
@@ -206,7 +260,7 @@ export default function Home() {
         </div>
         <nav aria-label="Primary navigation" className="flex overflow-x-auto border-t border-[#e5e7eb] px-4 lg:hidden">
           {CATEGORIES.map(item => (
-            <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`mr-6 whitespace-nowrap border-b-2 py-3 text-xs font-medium tracking-[-0.01em] ${category === item.value && !query ? 'border-[#1167ee] text-[#0c0a08]' : 'border-transparent text-[#343434]'}`}>
+            <button key={item.value} onClick={() => { setCategory(item.value); if (query) { setLoading(true); setError(''); setQuery(''); } }} className={`mr-6 whitespace-nowrap border-b-2 py-3 text-xs font-medium tracking-[-0.01em] ${category === item.value && !query ? 'border-[#1167ee] text-[#0c0a08]' : 'border-transparent text-[#343434]'}`}>
               {item.label}
             </button>
           ))}
@@ -214,7 +268,10 @@ export default function Home() {
       </header>
 
       <div className="mx-auto max-w-[1200px] px-4 py-4 sm:px-6 lg:py-5">
-        {error && <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {error && <div role="alert" className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {!loading && !error && partialNews && <p role="status" className="mb-5 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">Some news sources are temporarily unavailable. Showing available news.</p>}
+
+        {briefsError && <p role="status" className="mb-4 text-xs text-[#617080]">{briefsError} {briefItems.length > 0 && 'Showing news headlines in the market brief.'}</p>}
 
         {loading ? (
           <div className="grid min-h-[376px] animate-pulse gap-3 lg:grid-cols-[1.62fr_1.14fr_1fr]">
@@ -251,28 +308,11 @@ export default function Home() {
               ))}
             </div>
 
-            <aside className="overflow-hidden rounded-2xl border border-[#e5e7eb] bg-white">
-              <div className="flex items-center justify-between border-b border-[#e5e7eb] px-4 py-4">
-                <h2 className="text-[19px] font-normal tracking-[-0.025em]">Today&apos;s Market Brief</h2>
-                <span className="text-[11px] font-semibold text-[#1167ee]">Essential</span>
-              </div>
-              <ol className="divide-y divide-[#e5e7eb]">
-                {briefItems.map((brief, index) => (
-                  <li key={`${brief.headline}-${index}`} className="grid grid-cols-[26px_7px_1fr] gap-2 px-4 py-3">
-                    <span className="font-mono text-[11px] text-[#73808a]">{String(index + 1).padStart(2, '0')}</span>
-                    <span className={`mt-1.5 h-2 w-2 rounded-full ${index < 2 ? 'bg-[#28b979]' : index === 2 ? 'bg-[#ff5a52]' : 'bg-[#e3a51a]'}`} />
-                    <div>
-                      <p className="text-[12px] font-normal leading-[1.3] text-[#0c0a08] line-clamp-2">{decodeHtml(brief.headline)}</p>
-                      <div className="mt-1.5 flex gap-2">
-                        {brief.sources.slice(0, 1).map(source => <a key={source.url} href={source.url} target="_blank" rel="noopener noreferrer" className="text-[10px] font-semibold text-[#1167ee] hover:underline">{source.name}</a>)}
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </aside>
+            {marketBrief}
           </section>
         ) : null}
+
+        {(loading || !hero) && briefItems.length > 0 && marketBrief}
 
         <div className="mt-5"><MarketPulseDashboard /></div>
 
@@ -280,7 +320,7 @@ export default function Home() {
           <section className="mt-7">
             <div className="flex items-center gap-7 overflow-x-auto border-b border-[#d9d7d0]">
               {CATEGORIES.map(item => (
-                <button key={item.value} onClick={() => { setCategory(item.value); setQuery(''); }} className={`whitespace-nowrap border-b-2 py-3 text-xs font-semibold ${category === item.value ? 'border-[#1167ee] text-[#1167ee]' : 'border-transparent text-[#617080]'}`}>
+                <button key={item.value} onClick={() => { setCategory(item.value); if (query) { setLoading(true); setError(''); setQuery(''); } }} className={`whitespace-nowrap border-b-2 py-3 text-xs font-semibold ${category === item.value ? 'border-[#1167ee] text-[#1167ee]' : 'border-transparent text-[#617080]'}`}>
                   {item.value === 'briefing' ? 'Latest' : item.label}
                 </button>
               ))}

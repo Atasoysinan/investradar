@@ -1,7 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { ETF_CATEGORIES } from '@/lib/etfCatalog';
+import { fetchData } from '@/lib/dataRequest';
+
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import StockNewsModal from '@/components/StockNewsModal';
@@ -22,7 +25,6 @@ const WATCHLIST = [
 ];
 
 const TABS = ['Watchlist', 'S&P 500', 'NASDAQ', 'Penny Stocks', 'ETFs', 'Crypto'];
-const ETF_CATEGORIES = ['All', 'US Broad', 'European', 'Thematic', 'Bonds', 'Commodities'];
 
 interface Quote {
   symbol: string;
@@ -41,7 +43,7 @@ interface CoinData {
   name: string;
   image: string;
   current_price: number;
-  price_change_percentage_24h: number;
+  price_change_percentage_24h: number | null;
   market_cap: number;
   total_volume: number;
 }
@@ -66,6 +68,31 @@ interface EtfQuote {
   dp: number;
 }
 
+function validMarketRows(tab: string, value: unknown): boolean {
+  if (!Array.isArray(value)) return false;
+  const numericFields = tab === 'Crypto'
+    ? ['current_price', 'market_cap', 'total_volume']
+    : tab === 'ETFs' ? ['c', 'd', 'dp']
+    : tab === 'Penny Stocks' ? ['c', 'd', 'dp', 'h', 'l', 'pc']
+    : ['c', 'd', 'dp', 'h', 'l', 'o', 'pc'];
+  const textFields = tab === 'Crypto' ? ['id', 'symbol', 'name', 'image']
+    : tab === 'ETFs' ? ['symbol', 'name', 'category']
+    : tab === 'Penny Stocks' ? ['symbol', 'name'] : ['symbol'];
+  return value.every(row => {
+    if (!row || typeof row !== 'object') return false;
+    if (!textFields.every(field => typeof row[field] === 'string' && row[field].trim().length > 0)) return false;
+    if (!numericFields.every(field => typeof row[field] === 'number' && Number.isFinite(row[field]))) return false;
+    if (tab === 'Crypto') {
+      const change = row.price_change_percentage_24h;
+      if (change !== null && (typeof change !== 'number' || !Number.isFinite(change))) return false;
+      try {
+        if (!['https:', 'http:'].includes(new URL(row.image).protocol)) return false;
+      } catch { return false; }
+    }
+    return true;
+  });
+}
+
 function formatCompact(n: number): string {
   if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
@@ -88,21 +115,23 @@ const IndexSkeleton = () => (
       </svg>
       Loading live data…
     </div>
-    <table className="w-full">
-      <tbody className="divide-y divide-gray-100">
-        {[...Array(8)].map((_, i) => (
-          <tr key={i} className="animate-pulse">
-            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-16"/></td>
-            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-20 ml-auto"/></td>
-            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-12 ml-auto"/></td>
-            <td className="py-3 px-4"><div className="h-5 bg-gray-200 rounded w-16 ml-auto"/></td>
-            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
-            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
-            <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-10 ml-auto"/></td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="w-full overflow-x-auto" role="region" aria-label="Market data table" tabIndex={0}>
+      <table className="w-full">
+        <tbody className="divide-y divide-gray-100">
+          {[...Array(8)].map((_, i) => (
+            <tr key={i} className="animate-pulse">
+              <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-16"/></td>
+              <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-20 ml-auto"/></td>
+              <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-12 ml-auto"/></td>
+              <td className="py-3 px-4"><div className="h-5 bg-gray-200 rounded w-16 ml-auto"/></td>
+              <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
+              <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-14 ml-auto"/></td>
+              <td className="py-3 px-4"><div className="h-4 bg-gray-200 rounded w-10 ml-auto"/></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   </div>
 );
 
@@ -111,9 +140,11 @@ export default function MarketsPage() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Record<string, Date>>({});
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [refreshError, setRefreshError] = useState('');
   const [activeTab, setActiveTab] = useState('Watchlist');
-  const [indexData, setIndexData] = useState<Quote[]>([]);
+  const [indexByTab, setIndexByTab] = useState<Record<string, Quote[]>>({});
   const [indexLoading, setIndexLoading] = useState(false);
   const [cryptoData, setCryptoData] = useState<CoinData[]>([]);
   const [cryptoLoading, setCryptoLoading] = useState(false);
@@ -123,78 +154,62 @@ export default function MarketsPage() {
   const [etfLoading, setEtfLoading] = useState(false);
   const [etfFilter, setEtfFilter] = useState('All');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/market?symbols=${WATCHLIST.map(w => w.symbol).join(',')}`);
-      const data = await res.json();
-      setQuotes(Array.isArray(data) ? data : []);
-      setLastUpdated(new Date());
-    } finally {
-      setLoading(false);
+  const indexData = indexByTab[activeTab] ?? [];
+  const lastUpdated = updatedAt[activeTab];
+  const refreshing = activeTab === 'Watchlist' ? loading
+    : activeTab === 'Crypto' ? cryptoLoading
+    : activeTab === 'Penny Stocks' ? pennyLoading
+    : activeTab === 'ETFs' ? etfLoading : indexLoading;
+
+  function beginLoading(tab: string) {
+    setRefreshError('');
+    if (tab === 'Watchlist') setLoading(true);
+    else if (tab === 'Crypto') setCryptoLoading(true);
+    else if (tab === 'Penny Stocks') setPennyLoading(true);
+    else if (tab === 'ETFs') setEtfLoading(true);
+    else setIndexLoading(true);
+  }
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let active = true;
+    const endpoints: Record<string, string> = {
+      Watchlist: `/api/market?symbols=${WATCHLIST.map(w => w.symbol).join(',')}`,
+      'S&P 500': '/api/market?type=index-quotes&tab=sp500',
+      NASDAQ: '/api/market?type=index-quotes&tab=nasdaq',
+      Crypto: '/api/crypto',
+      'Penny Stocks': '/api/penny',
+      ETFs: '/api/etfs',
+    };
+    async function load() {
+      try {
+        const { data, headers } = await fetchData(endpoints[activeTab], { signal: controller.signal }, 12000);
+        if (!validMarketRows(activeTab, data)) throw new Error('Invalid market response');
+        if (!active) return;
+        if (activeTab === 'Watchlist') setQuotes(data);
+        else if (activeTab === 'Crypto') setCryptoData(data);
+        else if (activeTab === 'Penny Stocks') setPennyData(data);
+        else if (activeTab === 'ETFs') setEtfData(data);
+        else setIndexByTab(previous => ({ ...previous, [activeTab]: data }));
+        setUpdatedAt(previous => ({ ...previous, [activeTab]: new Date() }));
+        if (headers.get('X-Market-Data-Partial') === 'true') {
+          setRefreshError('Some market data is unavailable. Showing available quotes.');
+        }
+      } catch {
+        if (active) setRefreshError('Unable to refresh market data. Please try again.');
+      } finally {
+        if (active) {
+          if (activeTab === 'Watchlist') setLoading(false);
+          else if (activeTab === 'Crypto') setCryptoLoading(false);
+          else if (activeTab === 'Penny Stocks') setPennyLoading(false);
+          else if (activeTab === 'ETFs') setEtfLoading(false);
+          else setIndexLoading(false);
+        }
+      }
     }
-  }, []);
-
-  useEffect(() => {
-    const initialLoad = window.setTimeout(() => { void load(); }, 0);
-    return () => window.clearTimeout(initialLoad);
-  }, [load]);
-
-  useEffect(() => {
-    if (activeTab !== 'S&P 500' && activeTab !== 'NASDAQ') return;
-    const request = window.setTimeout(() => {
-      setIndexLoading(true);
-      setIndexData([]);
-      const tabParam = activeTab === 'S&P 500' ? 'sp500' : 'nasdaq';
-      fetch(`/api/market?type=index-quotes&tab=${tabParam}`)
-        .then(r => r.json())
-        .then(data => {
-          setIndexData(Array.isArray(data) ? data : []);
-          setIndexLoading(false);
-        })
-        .catch(() => setIndexLoading(false));
-    }, 0);
-    return () => window.clearTimeout(request);
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab !== 'Crypto') return;
-    const request = window.setTimeout(() => {
-      setCryptoLoading(true);
-      setCryptoData([]);
-      fetch('/api/crypto')
-        .then(r => r.json())
-        .then(data => { setCryptoData(Array.isArray(data) ? data : []); setCryptoLoading(false); })
-        .catch(() => setCryptoLoading(false));
-    }, 0);
-    return () => window.clearTimeout(request);
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab !== 'Penny Stocks') return;
-    const request = window.setTimeout(() => {
-      setPennyLoading(true);
-      setPennyData([]);
-      fetch('/api/penny')
-        .then(r => r.json())
-        .then(data => { setPennyData(Array.isArray(data) ? data : []); setPennyLoading(false); })
-        .catch(() => setPennyLoading(false));
-    }, 0);
-    return () => window.clearTimeout(request);
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (activeTab !== 'ETFs') return;
-    const request = window.setTimeout(() => {
-      setEtfLoading(true);
-      setEtfData([]);
-      fetch('/api/etfs')
-        .then(r => r.json())
-        .then(data => { setEtfData(Array.isArray(data) ? data : []); setEtfLoading(false); })
-        .catch(() => setEtfLoading(false));
-    }, 0);
-    return () => window.clearTimeout(request);
-  }, [activeTab]);
+    void load();
+    return () => { active = false; controller.abort(); };
+  }, [activeTab, refreshVersion]);
 
   const gainers = quotes.filter(q => q.dp > 0).sort((a, b) => b.dp - a.dp).slice(0, 3);
   const losers = quotes.filter(q => q.dp < 0).sort((a, b) => a.dp - b.dp).slice(0, 3);
@@ -202,7 +217,7 @@ export default function MarketsPage() {
   return (
     <div className="min-h-screen bg-[#f5f6f7] text-gray-900">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
               <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm text-white">IR</div>
@@ -211,10 +226,12 @@ export default function MarketsPage() {
             <span className="text-gray-300">/</span>
             <span className="text-gray-500 font-medium">Markets</span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 sm:justify-end">
             <button
-              onClick={load}
-              className="text-xs text-gray-600 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-1 rounded font-medium transition-colors flex items-center gap-1"
+              onClick={() => { beginLoading(activeTab); setRefreshVersion(version => version + 1); }}
+              disabled={refreshing}
+              aria-busy={refreshing}
+              className="text-xs text-gray-600 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-1 rounded font-medium transition-colors flex items-center gap-1 whitespace-nowrap shrink-0"
             >
               ↻ Refresh
               {lastUpdated && <span className="text-gray-400 ml-1">· {lastUpdated.toLocaleTimeString()}</span>}
@@ -225,6 +242,7 @@ export default function MarketsPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-6">
+        {refreshError && <p role="alert" className="mb-4 text-sm text-red-700">{refreshError}</p>}
         {/* Top Movers */}
         {!loading && (gainers.length > 0 || losers.length > 0) && (
           <div className="grid grid-cols-2 gap-4 mb-6">
@@ -278,7 +296,11 @@ export default function MarketsPage() {
             {TABS.map(tab => (
               <button
                 key={tab}
-                onClick={() => setActiveTab(tab)}
+                onClick={() => {
+                  if (tab === activeTab) return;
+                  beginLoading(tab);
+                  setActiveTab(tab);
+                }}
                 className={`py-3 px-4 text-sm transition-colors border-b-2 -mb-px whitespace-nowrap ${
                   activeTab === tab
                     ? 'border-gray-900 text-gray-900 font-semibold'
@@ -299,46 +321,52 @@ export default function MarketsPage() {
                   <div className="text-sm">Fetching from CoinGecko</div>
                 </div>
               ) : cryptoData.length > 0 ? (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                      <th className="text-right py-3 px-4 w-10">#</th>
-                      <th className="text-left py-3 px-4">Coin</th>
-                      <th className="text-right py-3 px-4">Price</th>
-                      <th className="text-right py-3 px-4">24h Change</th>
-                      <th className="text-right py-3 px-4">Market Cap</th>
-                      <th className="text-right py-3 px-4">Volume</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {cryptoData.map((coin, i) => (
-                      <tr
-                        key={coin.id}
-                        onClick={() => router.push(`/crypto/${coin.id}`)}
-                        className="hover:bg-blue-50 cursor-pointer transition-colors"
-                      >
-                        <td className="py-3 px-4 text-right text-gray-400 text-sm font-medium">#{i + 1}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <Image src={coin.image} alt={coin.name} width={24} height={24} className="rounded-full flex-shrink-0" />
-                            <span className="font-bold text-gray-900 text-sm">{coin.name}</span>
-                            <span className="text-xs text-gray-400 uppercase">{coin.symbol}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-gray-800 text-sm">
-                          {formatCoinPrice(coin.current_price)}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${coin.price_change_percentage_24h >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {coin.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right text-gray-500 text-sm">{formatCompact(coin.market_cap)}</td>
-                        <td className="py-3 px-4 text-right text-gray-500 text-sm">{formatCompact(coin.total_volume)}</td>
+                <div className="w-full overflow-x-auto" role="region" aria-label="Market data table" tabIndex={0}>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                        <th className="text-right py-3 px-4 w-10">#</th>
+                        <th className="text-left py-3 px-4">Coin</th>
+                        <th className="text-right py-3 px-4">Price</th>
+                        <th className="text-right py-3 px-4">24h Change</th>
+                        <th className="text-right py-3 px-4">Market Cap</th>
+                        <th className="text-right py-3 px-4">Volume</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {cryptoData.map((coin, i) => (
+                        <tr
+                          key={coin.id}
+                          onClick={() => router.push(`/crypto/${coin.id}`)}
+                          className="hover:bg-blue-50 cursor-pointer transition-colors"
+                        >
+                          <td className="py-3 px-4 text-right text-gray-400 text-sm font-medium">#{i + 1}</td>
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2">
+                              <Image unoptimized width={24} height={24} src={coin.image} alt={coin.name} className="w-6 h-6 rounded-full flex-shrink-0" />
+                              <span className="font-bold text-gray-900 text-sm">{coin.name}</span>
+                              <span className="text-xs text-gray-400 uppercase">{coin.symbol}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono text-gray-800 text-sm">
+                            {formatCoinPrice(coin.current_price)}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            {coin.price_change_percentage_24h === null ? (
+                              <span className="text-gray-400 text-xs" aria-label="24-hour change unavailable">—</span>
+                            ) : (
+                            <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${coin.price_change_percentage_24h >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {coin.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
+                            </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-500 text-sm">{formatCompact(coin.market_cap)}</td>
+                          <td className="py-3 px-4 text-right text-gray-500 text-sm">{formatCompact(coin.total_volume)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <div className="text-center py-16 text-gray-400 text-sm">Failed to load crypto data</div>
               )}
@@ -351,49 +379,51 @@ export default function MarketsPage() {
               {indexLoading ? (
                 <IndexSkeleton />
               ) : indexData.length > 0 ? (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                      <th className="text-left py-3 px-4">Symbol</th>
-                      <th className="text-right py-3 px-4">Price</th>
-                      <th className="text-right py-3 px-4">Change</th>
-                      <th className="text-right py-3 px-4">% Change</th>
-                      <th className="text-right py-3 px-4">High</th>
-                      <th className="text-right py-3 px-4">Low</th>
-                      <th className="text-right py-3 px-4">News</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {indexData.filter(q => q.c > 0).map(quote => (
-                      <tr
-                        key={quote.symbol}
-                        onClick={() => router.push(`/stocks/${quote.symbol}`)}
-                        className="hover:bg-blue-50 cursor-pointer transition-colors"
-                      >
-                        <td className="py-3 px-4 font-bold text-gray-900 text-sm">{quote.symbol}</td>
-                        <td className="py-3 px-4 text-right text-gray-700">${quote.c.toFixed(2)}</td>
-                        <td className={`py-3 px-4 text-right ${quote.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {quote.d >= 0 ? '+' : ''}{quote.d.toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${quote.dp >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {quote.dp >= 0 ? '▲' : '▼'} {Math.abs(quote.dp).toFixed(2)}%
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.h.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.l.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right">
-                          <button
-                            onClick={e => { e.stopPropagation(); setSelected(quote.symbol); }}
-                            className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
-                          >
-                            📰 View
-                          </button>
-                        </td>
+                <div className="w-full overflow-x-auto" role="region" aria-label="Market data table" tabIndex={0}>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                        <th className="text-left py-3 px-4">Symbol</th>
+                        <th className="text-right py-3 px-4">Price</th>
+                        <th className="text-right py-3 px-4">Change</th>
+                        <th className="text-right py-3 px-4">% Change</th>
+                        <th className="text-right py-3 px-4">High</th>
+                        <th className="text-right py-3 px-4">Low</th>
+                        <th className="text-right py-3 px-4">News</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {indexData.filter(q => q.c > 0).map(quote => (
+                        <tr
+                          key={quote.symbol}
+                          onClick={() => router.push(`/stocks/${quote.symbol}`)}
+                          className="hover:bg-blue-50 cursor-pointer transition-colors"
+                        >
+                          <td className="py-3 px-4 font-bold text-gray-900 text-sm">{quote.symbol}</td>
+                          <td className="py-3 px-4 text-right text-gray-700">${quote.c.toFixed(2)}</td>
+                          <td className={`py-3 px-4 text-right ${quote.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {quote.d >= 0 ? '+' : ''}{quote.d.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${quote.dp >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {quote.dp >= 0 ? '▲' : '▼'} {Math.abs(quote.dp).toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.h.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.l.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right">
+                            <button
+                              onClick={e => { e.stopPropagation(); setSelected(quote.symbol); }}
+                              className="text-xs font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                            >
+                              📰 View
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <div className="text-center py-16 text-gray-400 text-sm">Click a tab to load live data</div>
               )}
@@ -406,51 +436,53 @@ export default function MarketsPage() {
               {pennyLoading ? (
                 <IndexSkeleton />
               ) : pennyData.length > 0 ? (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                      <th className="text-left py-3 px-4">Symbol</th>
-                      <th className="text-left py-3 px-4">Company</th>
-                      <th className="text-right py-3 px-4">Price</th>
-                      <th className="text-right py-3 px-4">Change</th>
-                      <th className="text-right py-3 px-4">% Change</th>
-                      <th className="text-right py-3 px-4">High</th>
-                      <th className="text-right py-3 px-4">Low</th>
-                      <th className="text-right py-3 px-4">Prev Close</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {pennyData.filter(q => q.c > 0).map(quote => (
-                      <tr
-                        key={quote.symbol}
-                        onClick={() => router.push(`/stocks/${quote.symbol}`)}
-                        className="hover:bg-blue-50 cursor-pointer transition-colors"
-                      >
-                        <td className="py-3 px-4 font-bold text-gray-900 text-sm">{quote.symbol}</td>
-                        <td className="py-3 px-4 text-gray-500 text-sm">{quote.name}</td>
-                        <td className="py-3 px-4 text-right text-gray-700">${quote.c.toFixed(2)}</td>
-                        <td className={`py-3 px-4 text-right ${quote.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {quote.d >= 0 ? '+' : ''}{quote.d.toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${quote.dp >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                            {quote.dp >= 0 ? '▲' : '▼'} {Math.abs(quote.dp).toFixed(2)}%
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.h.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.l.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.pc.toFixed(2)}</td>
+                <div className="w-full overflow-x-auto" role="region" aria-label="Market data table" tabIndex={0}>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                        <th className="text-left py-3 px-4">Symbol</th>
+                        <th className="text-left py-3 px-4">Company</th>
+                        <th className="text-right py-3 px-4">Price</th>
+                        <th className="text-right py-3 px-4">Change</th>
+                        <th className="text-right py-3 px-4">% Change</th>
+                        <th className="text-right py-3 px-4">High</th>
+                        <th className="text-right py-3 px-4">Low</th>
+                        <th className="text-right py-3 px-4">Prev Close</th>
                       </tr>
-                    ))}
-                    {pennyData.filter(q => q.c === 0).length === pennyData.length && (
-                      <tr>
-                        <td colSpan={8} className="text-center py-16 text-gray-400 text-sm">
-                          Market closed or data unavailable
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {pennyData.filter(q => q.c > 0).map(quote => (
+                        <tr
+                          key={quote.symbol}
+                          onClick={() => router.push(`/stocks/${quote.symbol}`)}
+                          className="hover:bg-blue-50 cursor-pointer transition-colors"
+                        >
+                          <td className="py-3 px-4 font-bold text-gray-900 text-sm">{quote.symbol}</td>
+                          <td className="py-3 px-4 text-gray-500 text-sm">{quote.name}</td>
+                          <td className="py-3 px-4 text-right text-gray-700">${quote.c.toFixed(2)}</td>
+                          <td className={`py-3 px-4 text-right ${quote.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {quote.d >= 0 ? '+' : ''}{quote.d.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${quote.dp >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                              {quote.dp >= 0 ? '▲' : '▼'} {Math.abs(quote.dp).toFixed(2)}%
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.h.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.l.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right text-gray-500 text-sm">${quote.pc.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                      {pennyData.filter(q => q.c === 0).length === pennyData.length && (
+                        <tr>
+                          <td colSpan={8} className="text-center py-16 text-gray-400 text-sm">
+                            Market closed or data unavailable
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <div className="text-center py-16 text-gray-400 text-sm">Failed to load penny stock data</div>
               )}
@@ -478,44 +510,46 @@ export default function MarketsPage() {
               {etfLoading ? (
                 <IndexSkeleton />
               ) : etfData.length > 0 ? (
-                <table className="w-full">
-                  <thead>
-                    <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                      <th className="text-left py-3 px-4">Symbol</th>
-                      <th className="text-left py-3 px-4">Name</th>
-                      <th className="text-left py-3 px-4">Category</th>
-                      <th className="text-right py-3 px-4">Price</th>
-                      <th className="text-right py-3 px-4">Change</th>
-                      <th className="text-right py-3 px-4">% Change</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {etfData
-                      .filter(etf => etfFilter === 'All' || etf.category === etfFilter)
-                      .map(etf => (
-                        <tr
-                          key={etf.symbol}
-                          onClick={() => router.push(`/stocks/${etf.symbol}`)}
-                          className="hover:bg-blue-50 cursor-pointer transition-colors"
-                        >
-                          <td className="py-3 px-4 font-bold text-gray-900 text-sm">{etf.symbol}</td>
-                          <td className="py-3 px-4 text-gray-700 text-sm">{etf.name}</td>
-                          <td className="py-3 px-4">
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">{etf.category}</span>
-                          </td>
-                          <td className="py-3 px-4 text-right text-gray-700">${etf.c.toFixed(2)}</td>
-                          <td className={`py-3 px-4 text-right ${etf.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {etf.d >= 0 ? '+' : ''}{etf.d.toFixed(2)}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${etf.dp >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                              {etf.dp >= 0 ? '▲' : '▼'} {Math.abs(etf.dp).toFixed(2)}%
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+                <div className="w-full overflow-x-auto" role="region" aria-label="Market data table" tabIndex={0}>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                        <th className="text-left py-3 px-4">Symbol</th>
+                        <th className="text-left py-3 px-4">Name</th>
+                        <th className="text-left py-3 px-4">Category</th>
+                        <th className="text-right py-3 px-4">Price</th>
+                        <th className="text-right py-3 px-4">Change</th>
+                        <th className="text-right py-3 px-4">% Change</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {etfData
+                        .filter(etf => etfFilter === 'All' || etf.category === etfFilter)
+                        .map(etf => (
+                          <tr
+                            key={etf.symbol}
+                            onClick={() => router.push(`/stocks/${etf.symbol}`)}
+                            className="hover:bg-blue-50 cursor-pointer transition-colors"
+                          >
+                            <td className="py-3 px-4 font-bold text-gray-900 text-sm">{etf.symbol}</td>
+                            <td className="py-3 px-4 text-gray-700 text-sm">{etf.name}</td>
+                            <td className="py-3 px-4">
+                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded font-medium">{etf.category}</span>
+                            </td>
+                            <td className="py-3 px-4 text-right text-gray-700">${etf.c.toFixed(2)}</td>
+                            <td className={`py-3 px-4 text-right ${etf.d >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {etf.d >= 0 ? '+' : ''}{etf.d.toFixed(2)}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-semibold text-xs ${etf.dp >= 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {etf.dp >= 0 ? '▲' : '▼'} {Math.abs(etf.dp).toFixed(2)}%
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
               ) : (
                 <div className="text-center py-16 text-gray-400 text-sm">Failed to load ETF data</div>
               )}

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - check: lint
+            command: npm run lint
+          - check: typecheck
+            command: npm run typecheck
+          - check: test
+            command: npm test
+          - check: build
+            command: npm run build -- --webpack
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run ${{ matrix.check }}
+        run: ${{ matrix.command }}
+
+  ci:
+    name: CI gate
+    if: ${{ always() }}
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Reject failed or incomplete checks
+        if: ${{ needs.checks.result != 'success' }}
+        run: exit 1
+      - name: Confirm all checks passed
+        run: echo "All CI checks passed."
