@@ -120,4 +120,4 @@ Actions are pinned to commit SHAs, repository permission is read-only, checkout 
 
 ### CI-only branch pushes
 
-`vercel.json` disables automatic Vercel Git deployments for `mobile-fixes`. Pushing this branch runs GitHub Actions without creating a preview deployment. Other branches retain Vercel's default deployment behavior; production releases still require explicit approval.
+`vercel.json` disables automatic Vercel Git deployments for both `mobile-fixes` and `main`. GitHub Actions still runs on pushes and pull requests. The `main` rule takes effect when this configuration reaches `main`, preventing the merge from automatically publishing a new production deployment. The existing production deployment stays in place. Other branches retain Vercel's default Git deployment behavior; manual deployments still require explicit approval.
