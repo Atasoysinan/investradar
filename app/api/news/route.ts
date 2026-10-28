@@ -1,4 +1,7 @@
+import { newsArticles } from '@/lib/newsProvider';
+import { checkDataRateLimit } from '@/lib/dataRateLimit';
 import { NextRequest, NextResponse } from 'next/server';
+import { decodeHtml } from '@/lib/decodeHtml';
 
 const NEWSAPI_KEY = process.env.NEWSAPI_KEY;
 const GNEWS_KEY   = process.env.GNEWS_KEY; const NEWSDATA_KEY = process.env.NEWSDATA_KEY; const MEDIASTACK_KEY = process.env.MEDIASTACK_KEY;
@@ -83,7 +86,8 @@ interface Article {
 }
 
 function checkIsLive(publishedAt: string): boolean {
-  return (Date.now() - new Date(publishedAt).getTime()) < 60 * 60 * 1000;
+  const age = Date.now() - Date.parse(publishedAt);
+  return Number.isFinite(age) && age >= 0 && age < 60 * 60 * 1000;
 }
 
 function stripCDATA(s: string): string {
@@ -96,23 +100,78 @@ function decodeEntities(u: string | null): string | null {
 }
 
 function stripHTML(s: string): string {
-  return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  return decodeHtml(s).replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
 }
 
 function parsePubDate(s: string): string {
   try {
     const d = new Date(s);
-    return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
-  } catch { return new Date().toISOString(); }
+    return Number.isFinite(d.getTime()) ? d.toISOString() : '';
+  } catch { return ''; }
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
+}
+
+function text(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+const SOURCE_TIMEOUT_MS = 5000;
+
+async function fetchSource<T>(
+  url: string,
+  options: RequestInit & { next: { revalidate: number } },
+  read: (response: Response) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error('News source timed out'));
+      controller.abort();
+    }, SOURCE_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([
+      deadline,
+      (async () => {
+        const response = await fetch(url, { ...options, signal: controller.signal });
+        if (!response.ok) throw new Error('News source unavailable');
+        return read(response);
+      })(),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchProvider(url: string, field: string, sourceName: string, revalidate: number): Promise<Article[]> {
+  const payload: unknown = await fetchSource(url, { redirect: 'error', next: { revalidate } }, response => response.json());
+  const items = newsArticles(payload, field);
+  return items.flatMap((item): Article[] => {
+    const a = record(item);
+    const title = text(a.title);
+    const url = text(a.url) || text(a.link);
+    if (!title || title === '[Removed]' || !url) return [];
+    const publishedAt = parsePubDate(text(a.publishedAt) || text(a.pubDate) || text(a.published_at));
+    return [{
+      title: stripHTML(title), description: stripHTML(text(a.description)), url,
+      urlToImage: text(a.urlToImage) || text(a.image) || text(a.image_url) || null,
+      publishedAt, source: { name: text(record(a.source).name) || text(a.source) || text(a.source_id) || sourceName },
+      isLive: checkIsLive(publishedAt),
+      ...(sourceName === 'NewsData' || sourceName === 'Mediastack' ? { provider: 'api' } : {}),
+    }];
+  });
 }
 
 async function fetchRSS(feedUrl: string, sourceName: string): Promise<Article[]> {
-  const res = await fetch(feedUrl, {
+  const text = await fetchSource(feedUrl, {
     headers: { 'User-Agent': 'InvestRadar/1.0' },
     next: { revalidate: 300 },
-  });
-  if (!res.ok) return [];
-  const text = await res.text();
+  }, response => response.text());
+  if (!/<(?:rss|rdf:RDF)(?:\s|>)/i.test(text) || !/<\/(?:rss|rdf:RDF)\s*>/i.test(text)) throw new Error('Invalid news feed');
   const items = text.match(/<item>([\s\S]*?)<\/item>/g) || [];
   return items.slice(0, 10).flatMap((item): Article[] => {
     const titleM   = item.match(/<title>([\s\S]*?)<\/title>/);
@@ -126,7 +185,7 @@ async function fetchRSS(feedUrl: string, sourceName: string): Promise<Article[]>
     const title    = titleM  ? stripCDATA(titleM[1])  : '';
     const url      = linkM   ? stripCDATA(linkM[1]).trim() : '';
     if (!title || !url) return [];
-    const publishedAt = dateM ? parsePubDate(stripCDATA(dateM[1])) : new Date().toISOString();
+    const publishedAt = dateM ? parsePubDate(stripCDATA(dateM[1])) : '';
     const description = descM ? stripHTML(stripCDATA(descM[1])).slice(0, 200) : '';
     const urlToImage  = decodeEntities(imgM ? imgM[1] : (item.match(/<img[^>]+src=["']([^"']+)["']/i) || [])[1] || null);
     return [{ title, description, url, urlToImage, publishedAt, source: { name: sourceName }, isLive: checkIsLive(publishedAt) }];
@@ -152,7 +211,11 @@ function deduplicate(articles: Article[]): Article[] {
   return out;
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
+  const limited = await checkDataRateLimit(request, 'news', 1);
+  if (limited) return limited;
   const { searchParams } = new URL(request.url);
   const region = searchParams.get('region') || searchParams.get('country') || 'us';
   const q        = searchParams.get('q')         || '';
@@ -166,52 +229,40 @@ export async function GET(request: NextRequest) {
     ? `q=${encodeURIComponent(q)}&lang=en&country=${gNewsCountry}&max=10&sortby=publishedAt&token=${GNEWS_KEY}`
     : `category=business&lang=en&country=${gNewsCountry}&max=10&sortby=publishedAt&token=${GNEWS_KEY}`;
 
-  const [newsApiResult, gNewsResult, newsDataResult, mediastackResult, ...rssResults] = await Promise.allSettled([
+  const results = await Promise.allSettled([
     // NewsAPI
-    fetch(
+    NEWSAPI_KEY ? fetchProvider(
       `https://newsapi.org/v2/everything?q=${encodeURIComponent(newsApiQuery)}&language=en&sortBy=publishedAt&pageSize=20&domains=${TRUSTED_DOMAINS}&apiKey=${NEWSAPI_KEY}`,
-      { next: { revalidate: 300 } }
-    ).then(r => r.json()),
+      'articles', 'NewsAPI', 300
+    ) : Promise.reject('No NewsAPI key'),
     // GNews (skip if no key)
     GNEWS_KEY
-      ? fetch(`https://gnews.io/api/v4/top-headlines?${gNewsQS}`, { next: { revalidate: 300 } }).then(r => r.json())
+      ? fetchProvider(`https://gnews.io/api/v4/top-headlines?${gNewsQS}`, 'articles', 'GNews', 300)
       : Promise.reject('No GNews key'),
     // NewsData.io (skip if no key)
-    NEWSDATA_KEY ? fetch(`https://newsdata.io/api/1/latest?apikey=${NEWSDATA_KEY}&language=en&category=business,politics,world${q ? '&q=' + encodeURIComponent(q) : ''}`, { next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No NewsData key'),
+    NEWSDATA_KEY ? fetchProvider(`https://newsdata.io/api/1/latest?apikey=${NEWSDATA_KEY}&language=en&category=business,politics,world${q ? '&q=' + encodeURIComponent(q) : ''}`, 'results', 'NewsData', 1800) : Promise.reject('No NewsData key'),
     // Mediastack (skip if no key)
-    MEDIASTACK_KEY ? fetch(`https://api.mediastack.com/v1/news?access_key=${encodeURIComponent(MEDIASTACK_KEY)}&languages=en&categories=business${q ? '&keywords=' + encodeURIComponent(q) : ''}&limit=25&sort=published_desc`, { redirect: 'error', next: { revalidate: 1800 } }).then((r) => r.json()) : Promise.reject('No Mediastack key'),
+    MEDIASTACK_KEY ? fetchProvider(`https://api.mediastack.com/v1/news?access_key=${encodeURIComponent(MEDIASTACK_KEY)}&languages=en&categories=business${q ? '&keywords=' + encodeURIComponent(q) : ''}&limit=25&sort=published_desc`, 'data', 'Mediastack', 1800) : Promise.reject('No Mediastack key'),
     // RSS feeds
-    ...((region === 'europe' ? EU_FEEDS : region === 'asia' ? ASIA_FEEDS : region === 'france' ? FRANCE_FEEDS : region === 'uae' ? UAE_FEEDS : region === 'saudi' ? SAUDI_FEEDS : RSS_FEEDS).map(f => fetchRSS(f.url, f.name).catch(() => [] as Article[]))),
+    ...((region === 'europe' ? EU_FEEDS : region === 'asia' ? ASIA_FEEDS : region === 'france' ? FRANCE_FEEDS : region === 'uae' ? UAE_FEEDS : region === 'saudi' ? SAUDI_FEEDS : RSS_FEEDS).map(f => fetchRSS(f.url, f.name))),
   ]);
 
-  const pool: Article[] = [];
-
-  if (newsApiResult.status === 'fulfilled') {
-    for (const a of newsApiResult.value.articles || []) {
-      if (a.title === '[Removed]' || !a.title) continue;
-      pool.push({ title: a.title, description: a.description || '', url: a.url, urlToImage: a.urlToImage || null, publishedAt: a.publishedAt, source: { name: a.source?.name || 'Unknown' }, isLive: checkIsLive(a.publishedAt) });
-    }
+  if (results.every(result => result.status === 'rejected')) {
+    return NextResponse.json({ status: 'error', articles: [], message: 'News is temporarily unavailable. Please try again.' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '30' } });
   }
-
-  if (gNewsResult.status === 'fulfilled') {
-    for (const a of gNewsResult.value.articles || []) {
-      if (!a.title) continue;
-      pool.push({ title: a.title, description: a.description || '', url: a.url, urlToImage: a.image || null, publishedAt: a.publishedAt, source: { name: a.source?.name || 'GNews' }, isLive: checkIsLive(a.publishedAt) });
-    }
-  }
-
-  if (newsDataResult.status === 'fulfilled') { for (const a of (newsDataResult.value.results || [])) { if (!a.title) continue; pool.push({ title: a.title, description: stripHTML(a.description || ''), url: a.link, urlToImage: a.image_url || null, publishedAt: parsePubDate(a.pubDate), source: { name: a.source_id || 'NewsData' }, isLive: checkIsLive(parsePubDate(a.pubDate)), provider: 'api' }); } }
-  if (mediastackResult.status === 'fulfilled') { for (const a of (mediastackResult.value.data || [])) { if (!a.title) continue; pool.push({ title: a.title, description: stripHTML(a.description || ''), url: a.url, urlToImage: a.image || null, publishedAt: parsePubDate(a.published_at), source: { name: a.source || 'Mediastack' }, isLive: checkIsLive(parsePubDate(a.published_at)), provider: 'api' }); } }
-  for (const r of rssResults) {
-    if (r.status === 'fulfilled') pool.push(...(r.value as Article[]));
-  }
+  const pool: Article[] = results.flatMap(result => result.status === 'fulfilled' ? result.value : []);
 
   for (const a of pool) { if (a && a.title) a.title = stripHTML(a.title); }
-  pool.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+  pool.sort((a, b) => {
+    const aTime = Date.parse(a.publishedAt), bTime = Date.parse(b.publishedAt);
+    if (!Number.isFinite(aTime)) return Number.isFinite(bTime) ? 1 : 0;
+    if (!Number.isFinite(bTime)) return -1;
+    return bTime - aTime;
+  });
   const deduped = deduplicate(q ? pool.filter((a) => ((a.title || '') + ' ' + (a.description || '')).toLowerCase().includes(q.toLowerCase())) : pool);
   const apiSlots = deduped.filter(a => a.provider === 'api').slice(0, 2);
   const rest = deduped.filter(a => a.provider !== 'api');
   const articles = (() => { const out = rest.slice(); const positions = [3, 6]; apiSlots.forEach((it, k) => { const p = Math.min(positions[k] ?? out.length, out.length); out.splice(p, 0, it); }); return out.slice(0, 30); })();
 
-  return NextResponse.json({ status: 'ok', articles });
+  return NextResponse.json({ status: 'ok', articles }, { headers: results.some(result => result.status === 'rejected') ? { 'X-News-Data-Partial': 'true', 'Cache-Control': 'no-store' } : {} });
 }

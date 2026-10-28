@@ -1,4 +1,6 @@
 'use client';
+
+import { fetchJson } from '@/lib/dataRequest';
 import { useEffect, useState } from 'react';
 
 function timeAgo(dateStr: string): string {
@@ -24,19 +26,32 @@ interface Message {
 }
 interface Ticker {
   symbol: string;
-  watchlist_count: number;
+  watchlist_count: number | null;
   messages: Message[];
 }
 
 export default function MarketChatter() {
   const [tickers, setTickers] = useState<Ticker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [feedStatus, setFeedStatus] = useState<'ok' | 'partial' | 'unavailable'>('ok');
 
   useEffect(() => {
-    fetch('/api/stocktwits-feed')
-      .then(r => r.json())
-      .then(d => { setTickers(d.tickers || []); setLoading(false); })
-      .catch(() => setLoading(false));
+    const controller = new AbortController();
+    async function load() {
+      try {
+        const data = await fetchJson('/api/stocktwits-feed', { signal: controller.signal }, 12000);
+        if (!Array.isArray(data.tickers)) throw new Error('Invalid Stocktwits feed');
+        if (controller.signal.aborted) return;
+        setTickers(data.tickers);
+        setFeedStatus(data.status === 'partial' ? 'partial' : 'ok');
+      } catch {
+        if (!controller.signal.aborted) { setTickers([]); setFeedStatus('unavailable'); }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }
+    void load();
+    return () => controller.abort();
   }, []);
 
   if (loading) return (
@@ -50,17 +65,25 @@ export default function MarketChatter() {
     </div>
   );
 
-  if (tickers.length === 0) return null;
+  if (tickers.length === 0) return (
+    <p role="status" className="text-sm text-gray-500 py-6">
+      {feedStatus === 'unavailable' ? 'Stocktwits conversations are temporarily unavailable.'
+        : feedStatus === 'partial' ? 'Some Stocktwits conversations are unavailable. No recent messages from available sources.'
+          : 'No recent Stocktwits conversations.'}
+    </p>
+  );
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div>
+      {feedStatus === 'partial' && <p role="status" className="text-sm text-gray-500 mb-4">Some Stocktwits conversations are unavailable. Showing available messages.</p>}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {tickers.slice(0, 3).map(ticker => (
         <div key={ticker.symbol}>
           <div className="border-b-2 border-black pb-2 mb-3">
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-lg font-bold text-black">${ticker.symbol}</span>
-                {ticker.watchlist_count > 0 && (
+                {ticker.watchlist_count !== null && ticker.watchlist_count > 0 && (
                   <span className="text-xs text-gray-400 ml-2">{formatCount(ticker.watchlist_count)} watching</span>
                 )}
               </div>
@@ -93,6 +116,7 @@ export default function MarketChatter() {
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 }

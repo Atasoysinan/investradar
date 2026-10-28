@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { fetchData } from '@/lib/dataRequest';
 
 interface Quote {
   symbol: string;
   c: number;
-  dp: number;
+  dp: number | null;
 }
 
 interface Sector {
@@ -25,11 +26,31 @@ const INDEXES = [
 
 const MOVERS = ['NVDA', 'MSFT', 'AAPL', 'AMD', 'AMZN'];
 
-function Change({ value }: { value: number }) {
-  const up = value >= 0;
+function finite(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function quoteRows(value: unknown): Quote[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap(row => {
+    if (!row || typeof row !== 'object' || typeof row.symbol !== 'string'
+      || !row.symbol.trim() || !finite(row.c) || row.c <= 0) return [];
+    return [{ symbol: row.symbol, c: row.c, dp: finite(row.dp) ? row.dp : null }];
+  });
+}
+
+function sectorRows(value: unknown): Sector[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((row): row is Sector => row && typeof row === 'object'
+    && typeof row.ticker === 'string' && row.ticker.trim()
+    && typeof row.sectorName === 'string' && row.sectorName.trim() && finite(row.changePercent));
+}
+
+function Change({ value }: { value: number | null }) {
+  const valid = finite(value);
   return (
-    <span className={`font-mono text-[11px] font-normal ${up ? 'text-[#55de97]' : 'text-[#ff6b63]'}`}>
-      {up ? '+' : ''}{value.toFixed(2)}%
+    <span className={`font-mono text-[11px] font-normal ${valid && value > 0 ? 'text-[#55de97]' : valid && value < 0 ? 'text-[#ff6b63]' : 'text-slate-400'}`}>
+      {valid ? `${value > 0 ? '+' : ''}${value.toFixed(2)}%` : '—'}
     </span>
   );
 }
@@ -38,16 +59,24 @@ export default function MarketPulseDashboard() {
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [loading, setLoading] = useState(true);
+  const [partial, setPartial] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
     const symbols = [...INDEXES.map(item => item.symbol), ...MOVERS].join(',');
     Promise.allSettled([
-      fetch(`/api/market?symbols=${symbols}`, { signal: controller.signal }).then(r => r.json()),
-      fetch('/api/sectors', { signal: controller.signal }).then(r => r.json()),
+      fetchData(`/api/market?symbols=${symbols}`, { signal: controller.signal }, 12000),
+      fetchData('/api/sectors', { signal: controller.signal }, 12000),
     ]).then(([quoteResult, sectorResult]) => {
-      if (quoteResult.status === 'fulfilled' && Array.isArray(quoteResult.value)) setQuotes(quoteResult.value);
-      if (sectorResult.status === 'fulfilled' && Array.isArray(sectorResult.value)) setSectors(sectorResult.value);
+      if (controller.signal.aborted) return;
+      const quotes = quoteRows(quoteResult.status === 'fulfilled' ? quoteResult.value.data : null);
+      const sectors = sectorRows(sectorResult.status === 'fulfilled' ? sectorResult.value.data : null);
+      setQuotes(quotes); setSectors(sectors);
+      setPartial(quoteResult.status === 'rejected' || sectorResult.status === 'rejected'
+        || (quoteResult.status === 'fulfilled' && (!Array.isArray(quoteResult.value.data)
+          || quotes.length < quoteResult.value.data.length || quoteResult.value.headers.get('X-Market-Data-Partial') === 'true'))
+        || (sectorResult.status === 'fulfilled' && (!Array.isArray(sectorResult.value.data)
+          || sectors.length < sectorResult.value.data.length || sectorResult.value.headers.get('X-Market-Data-Partial') === 'true')));
       setLoading(false);
     });
     return () => controller.abort();
@@ -71,6 +100,8 @@ export default function MarketPulseDashboard() {
         <Link href="/markets" className="text-[11px] font-normal text-[#9eabff] hover:text-white">Full markets dashboard →</Link>
       </div>
 
+      {partial && !loading && (quotes.length > 0 || sectors.length > 0) && <p role="status" className="px-5 py-2 text-xs text-slate-400">Some market data is unavailable. Showing available data.</p>}
+
       {loading ? (
         <div className="grid min-h-56 place-items-center text-sm text-slate-400">Loading verified market data…</div>
       ) : quotes.length === 0 && sectors.length === 0 ? (
@@ -88,7 +119,7 @@ export default function MarketPulseDashboard() {
                   {quote?.c ? (
                     <>
                       <p className="mt-1.5 font-mono text-[17px] font-normal text-white">{quote.c.toLocaleString('en-US', { maximumFractionDigits: 2 })}</p>
-                      <div className="mt-1"><Change value={quote.dp ?? 0} /></div>
+                      <div className="mt-1"><Change value={quote.dp} /></div>
                     </>
                   ) : <p className="mt-5 text-xs text-slate-500">Unavailable</p>}
                 </Link>
@@ -121,7 +152,7 @@ export default function MarketPulseDashboard() {
                 <Link key={quote.symbol} href={`/stocks/${quote.symbol}`} className="flex items-center justify-between py-2 hover:text-[#9eabff]">
                   <span className="text-xs font-normal">{quote.symbol}</span>
                   <span className="font-mono text-xs text-slate-300">${quote.c.toFixed(2)}</span>
-                  <Change value={quote.dp ?? 0} />
+                  <Change value={quote.dp} />
                 </Link>
               ))}
             </div>

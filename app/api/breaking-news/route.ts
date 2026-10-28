@@ -1,3 +1,6 @@
+import { newsArticles } from '@/lib/newsProvider';
+import { createDataRequest } from '@/lib/dataRequest';
+import { checkDataRateLimit } from '@/lib/dataRateLimit';
 import { NextResponse } from 'next/server';
 
 const NEWSAPI_KEY = process.env.NEWSAPI_KEY;
@@ -34,48 +37,55 @@ interface NewsApiArticle {
   urlToImage?: string;
 }
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
+  const limited = await checkDataRateLimit(request, 'news', 1);
+  if (limited) return limited;
+  const read = createDataRequest();
   let articles: BreakingArticle[] = [];
+  let healthySources = 0;
+  let failedSources = 0;
 
   // SOURCE 1: GNews (near real-time)
   try {
+    if (!GNEWS_KEY) throw new Error('News provider unavailable');
     const gUrl = `https://gnews.io/api/v4/top-headlines?q=breaking+OR+explosion+OR+crash+OR+emergency+OR+disaster+OR+attack&lang=en&country=us&max=5&sortby=publishedAt&token=${GNEWS_KEY}`;
-    const gRes = await fetch(gUrl, { next: { revalidate: 300 } });
-    if (gRes.ok) {
-      const gData = await gRes.json();
-      const recent: GNewsArticle[] = (gData.articles || []).filter(
-        (a: GNewsArticle) => timeAgoMinutes(a.publishedAt) < 360
-      );
-      if (recent.length > 0) {
-        articles = recent.slice(0, 3).map((a: GNewsArticle) => ({
-          title: a.title,
-          url: a.url,
-          source: a.source?.name || 'GNews',
-          publishedAt: a.publishedAt,
-          image: a.image || null,
-          isBreaking: timeAgoMinutes(a.publishedAt) < 120,
-        }));
-      }
+    const gData = await read(gUrl, { next: { revalidate: 300 } });
+    const rows = newsArticles(gData) as unknown as GNewsArticle[];
+    healthySources++;
+    const recent: GNewsArticle[] = rows.filter(
+      (a: GNewsArticle) => timeAgoMinutes(a.publishedAt) < 360
+    );
+    if (recent.length > 0) {
+      articles = recent.slice(0, 3).map((a: GNewsArticle) => ({
+        title: a.title,
+        url: a.url,
+        source: a.source?.name || 'GNews',
+        publishedAt: a.publishedAt,
+        image: a.image || null,
+        isBreaking: timeAgoMinutes(a.publishedAt) < 120,
+      }));
     }
-  } catch { /* fall through to NewsAPI */ }
+  } catch { failedSources++; }
 
   // SOURCE 2: NewsAPI fallback
   if (articles.length === 0) {
     try {
+      if (!NEWSAPI_KEY) throw new Error('News provider unavailable');
       const nUrl = `https://newsapi.org/v2/everything?q=breaking+OR+explosion+OR+crash+OR+emergency+OR+disaster&domains=${TRUSTED_DOMAINS}&sortBy=publishedAt&pageSize=5&apiKey=${NEWSAPI_KEY}`;
-      const nRes = await fetch(nUrl, { next: { revalidate: 300 } });
-      if (nRes.ok) {
-        const nData = await nRes.json();
-        articles = (nData.articles || []).slice(0, 3).map((a: NewsApiArticle) => ({
-          title: a.title,
-          url: a.url,
-          source: a.source?.name || 'NewsAPI',
-          publishedAt: a.publishedAt,
-          image: a.urlToImage || null,
-          isBreaking: timeAgoMinutes(a.publishedAt) < 120,
-        }));
-      }
-    } catch { /* return empty */ }
+      const nData = await read(nUrl, { next: { revalidate: 300 } });
+      const rows = newsArticles(nData) as unknown as NewsApiArticle[];
+      healthySources++;
+      articles = rows.slice(0, 3).map((a: NewsApiArticle) => ({
+        title: a.title,
+        url: a.url,
+        source: a.source?.name || 'NewsAPI',
+        publishedAt: a.publishedAt,
+        image: a.urlToImage || null,
+        isBreaking: timeAgoMinutes(a.publishedAt) < 120,
+      }));
+    } catch { failedSources++; }
   }
 
   // Filter out sponsored/ad content
@@ -83,5 +93,6 @@ export async function GET() {
     (a) => !/(sponsored|advertisement|partner content)/i.test(a.title)
   );
 
-  return NextResponse.json({ articles });
+  if (healthySources === 0) return NextResponse.json({ articles: [], status: 'error', message: 'News is temporarily unavailable. Please try again.' }, { status: 503, headers: { 'Cache-Control': 'no-store', 'Retry-After': '30' } });
+  return NextResponse.json({ articles }, { headers: failedSources > 0 ? { 'X-News-Data-Partial': 'true', 'Cache-Control': 'no-store' } : {} });
 }

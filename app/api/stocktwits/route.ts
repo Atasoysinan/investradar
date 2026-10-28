@@ -1,41 +1,21 @@
+import { checkDataRateLimit } from '@/lib/dataRateLimit';
+import { fetchJson } from '@/lib/dataRequest';
 import { NextResponse } from 'next/server';
+import { stocktwitsSymbols } from '@/lib/socialData';
 
-const FALLBACK = [
-  { symbol: 'TSLA', name: 'Tesla', watchlist_count: 892000, sentiment: 'Bullish' },
-  { symbol: 'AAPL', name: 'Apple', watchlist_count: 743000, sentiment: 'Bullish' },
-  { symbol: 'NVDA', name: 'NVIDIA', watchlist_count: 621000, sentiment: 'Bullish' },
-  { symbol: 'AMD', name: 'AMD', watchlist_count: 445000, sentiment: 'Bullish' },
-  { symbol: 'SPY', name: 'S&P 500 ETF', watchlist_count: 398000, sentiment: null },
-  { symbol: 'AMZN', name: 'Amazon', watchlist_count: 312000, sentiment: 'Bullish' },
-  { symbol: 'META', name: 'Meta', watchlist_count: 287000, sentiment: 'Bullish' },
-  { symbol: 'GOOGL', name: 'Alphabet', watchlist_count: 245000, sentiment: null },
-];
+export const dynamic = 'force-dynamic';
 
-interface StocktwitSymbol {
-  symbol: string;
-  title: string;
-  watchlist_count: number;
-  sentiment?: { basic: string };
-}
-
-export async function GET() {
+export async function GET(request: Request) {
+  const limited = await checkDataRateLimit(request, 'market', 1);
+  if (limited) return limited;
   try {
-    const res = await fetch('https://api.stocktwits.com/api/2/trending/symbols.json', {
-      headers: { 'User-Agent': 'InvestRadar/1.0' },
-      cache: 'no-store',
+    const data = await fetchJson('https://api.stocktwits.com/api/2/trending/symbols.json', {
+      headers: { 'User-Agent': 'InvestRadar/1.0' }, cache: 'no-store',
     });
-    if (!res.ok) throw new Error(`Stocktwits returned ${res.status}`);
-    const json = await res.json();
-    const symbols: StocktwitSymbol[] = json?.symbols;
-    if (!Array.isArray(symbols) || symbols.length === 0) throw new Error('No symbols');
-    const data = symbols.slice(0, 8).map(s => ({
-      symbol: s.symbol,
-      name: s.title,
-      watchlist_count: s.watchlist_count,
-      sentiment: s.sentiment?.basic ?? null,
-    }));
-    return NextResponse.json(data);
+    return NextResponse.json(stocktwitsSymbols(data).slice(0, 8));
   } catch {
-    return NextResponse.json(FALLBACK);
+    return NextResponse.json({ error: 'Stocktwits data is temporarily unavailable.' }, {
+      status: 502, headers: { 'Cache-Control': 'no-store' },
+    });
   }
 }

@@ -1,6 +1,8 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { fetchJson } from '@/lib/dataRequest';
+
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 interface TrendingItem {
@@ -24,14 +26,14 @@ interface CoinBuzzItem {
   id: string;
   symbol: string;
   name: string;
-  current_price: number;
-  price_change_percentage_24h: number;
+  current_price: number | null;
+  price_change_percentage_24h: number | null;
 }
 
 interface StocktwitItem {
   symbol: string;
   name: string;
-  watchlist_count: number;
+  watchlist_count: number | null;
   sentiment: string | null;
 }
 
@@ -39,13 +41,29 @@ interface TrendingData {
   trending: TrendingItem[];
   reddit: RedditItem[];
   coins: CoinBuzzItem[];
+  availability?: { reddit?: 'ok' | 'unavailable' };
 }
 
 type Tab = 'trending' | 'social' | 'reddit' | 'crypto';
 
 const ROW = 'flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-white/5 transition-colors border-b border-white/10 last:border-0';
 
-function fmtPrice(p: number): string {
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function fmtChange(value: unknown): string {
+  if (!isFiniteNumber(value)) return '—';
+  return `${value > 0 ? '▲' : value < 0 ? '▼' : '—'} ${Math.abs(value).toFixed(2)}%`;
+}
+
+function changeClass(value: unknown): string {
+  return isFiniteNumber(value) && value > 0 ? 'text-green-600'
+    : isFiniteNumber(value) && value < 0 ? 'text-red-600' : 'text-slate-400';
+}
+
+function fmtPrice(p: unknown): string {
+  if (!isFiniteNumber(p) || p < 0) return '—';
   return p >= 1000
     ? `$${p.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     : `$${p.toFixed(2)}`;
@@ -57,30 +75,40 @@ export default function MarketBuzz() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>('trending');
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [trendingResult, stocktwitsResult] = await Promise.allSettled([
-        fetch('/api/trending').then(r => r.json()),
-        fetch('/api/stocktwits').then(r => r.json()),
-      ]);
-      if (trendingResult.status === 'fulfilled') setData(trendingResult.value);
-      if (stocktwitsResult.status === 'fulfilled' && Array.isArray(stocktwitsResult.value)) {
-        setStocktwitsData(stocktwitsResult.value);
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const [socialUnavailable, setSocialUnavailable] = useState(false);
+  const [redditUnavailable, setRedditUnavailable] = useState(false);
 
   useEffect(() => {
-    const initialLoad = window.setTimeout(() => { void load(); }, 0);
-    const id = setInterval(load, 60000);
-    return () => {
-      window.clearTimeout(initialLoad);
-      clearInterval(id);
-    };
-  }, [load]);
+    let active = true; let latest = 0;
+    const controllers = new Set<AbortController>();
+    async function read(url: string, signal: AbortSignal) {
+      return fetchJson(url, { signal }, 12000);
+    }
+    async function load() {
+      const request = ++latest;
+      const controller = new AbortController(); controllers.add(controller);
+      try {
+        const [trendingResult, stocktwitsResult] = await Promise.allSettled([
+          read('/api/trending', controller.signal), read('/api/stocktwits', controller.signal),
+        ]);
+        if (!active || request !== latest) return;
+        if (trendingResult.status === 'fulfilled' && Array.isArray(trendingResult.value?.trending)
+          && Array.isArray(trendingResult.value?.reddit) && Array.isArray(trendingResult.value?.coins)) {
+          setData(trendingResult.value);
+          setRedditUnavailable(trendingResult.value.availability?.reddit === 'unavailable');
+        } else { setData(null); setRedditUnavailable(true); }
+        if (stocktwitsResult.status === 'fulfilled' && Array.isArray(stocktwitsResult.value)) {
+          setStocktwitsData(stocktwitsResult.value); setSocialUnavailable(false);
+        } else { setStocktwitsData([]); setSocialUnavailable(true); }
+      } finally {
+        controllers.delete(controller);
+        if (active && request === latest) setLoading(false);
+      }
+    }
+    void load();
+    const id = setInterval(() => { setLoading(true); void load(); }, 60000);
+    return () => { active = false; clearInterval(id); controllers.forEach(controller => controller.abort()); };
+  }, []);
 
   const skeleton = [...Array(7)].map((_, i) => (
     <div key={i} className="px-3 py-2.5 flex items-center justify-between animate-pulse border-b border-gray-100">
@@ -144,16 +172,10 @@ export default function MarketBuzz() {
               <span className="text-xs text-gray-400 w-5 text-right flex-shrink-0">#{item.rank}</span>
               <span className="text-white font-bold text-sm w-14 flex-shrink-0">{item.symbol}</span>
               <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
-                {item.price != null ? (
-                  <>
-                    <span className="text-slate-200 text-xs">{fmtPrice(item.price)}</span>
-                    <span className={`text-xs font-medium flex-shrink-0 ${(item.dp ?? 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {(item.dp ?? 0) >= 0 ? '▲' : '▼'} {Math.abs(item.dp ?? 0).toFixed(2)}%
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-gray-300 text-xs">—</span>
-                )}
+                <span className="text-slate-200 text-xs">{fmtPrice(item.price)}</span>
+                <span className={`text-xs font-medium flex-shrink-0 ${changeClass(item.dp)}`}>
+                  {fmtChange(item.dp)}
+                </span>
               </div>
             </Link>
           )) : <p className="px-4 py-8 text-gray-400 text-xs text-center">No trending data</p>
@@ -168,11 +190,11 @@ export default function MarketBuzz() {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                <span className="text-gray-500 text-xs">
+                {item.watchlist_count !== null && <span className="text-gray-500 text-xs">
                   {item.watchlist_count >= 1000
                     ? `${(item.watchlist_count / 1000).toFixed(0)}K`
                     : `${item.watchlist_count}`} watching
-                </span>
+                </span>}
                 {item.sentiment && (
                   <span className={`text-xs font-medium ${item.sentiment === 'Bullish' ? 'text-green-600' : 'text-red-600'}`}>
                     {item.sentiment}
@@ -180,7 +202,7 @@ export default function MarketBuzz() {
                 )}
               </div>
             </Link>
-          )) : <p className="px-4 py-8 text-gray-400 text-xs text-center">No social data</p>
+          )) : <p className="px-4 py-8 text-gray-400 text-xs text-center">{socialUnavailable ? 'Stocktwits is temporarily unavailable.' : 'No social data'}</p>
 
         ) : activeTab === 'reddit' ? (
           data?.reddit.length ? data.reddit.map((item, i) => (
@@ -204,7 +226,7 @@ export default function MarketBuzz() {
                 <span className="text-xs text-gray-400 ml-auto">▲ {item.score.toLocaleString()}</span>
               </div>
             </a>
-          )) : <p className="px-4 py-8 text-gray-400 text-xs text-center">No Reddit data</p>
+          )) : <p className="px-4 py-8 text-gray-400 text-xs text-center">{redditUnavailable ? 'Reddit is temporarily unavailable.' : 'No Reddit data'}</p>
 
         ) : (
           data?.coins?.length ? data.coins.map((coin, i) => (
@@ -216,8 +238,8 @@ export default function MarketBuzz() {
               </div>
               <div className="flex-1 min-w-0 flex items-center justify-between gap-2">
                 <span className="text-slate-200 text-xs">{fmtPrice(coin.current_price)}</span>
-                <span className={`text-xs font-medium flex-shrink-0 ${coin.price_change_percentage_24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {coin.price_change_percentage_24h >= 0 ? '▲' : '▼'} {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
+                <span className={`text-xs font-medium flex-shrink-0 ${changeClass(coin.price_change_percentage_24h)}`}>
+                  {fmtChange(coin.price_change_percentage_24h)}
                 </span>
               </div>
             </Link>

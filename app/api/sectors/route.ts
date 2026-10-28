@@ -1,7 +1,8 @@
+import { checkDataRateLimit } from '@/lib/dataRateLimit';
 import { NextResponse } from 'next/server';
+import { fetchMarketQuote, marketQuoteList } from '@/lib/marketQuotes';
 
 const KEY = process.env.FINNHUB_KEY;
-const BASE = 'https://finnhub.io/api/v1';
 
 const SECTORS = [
   { ticker: 'XLK',  sectorName: 'Technology' },
@@ -16,7 +17,11 @@ const SECTORS = [
   { ticker: 'XLC',  sectorName: 'Communication' },
 ];
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
+  const limited = await checkDataRateLimit(request, 'market', 10);
+  if (limited) return limited;
   if (!KEY) {
     return NextResponse.json(
       { error: 'Market data service is not configured.' },
@@ -26,21 +31,16 @@ export async function GET() {
 
   const results = await Promise.allSettled(
     SECTORS.map(async ({ ticker, sectorName }) => {
-      const res = await fetch(`${BASE}/quote?symbol=${ticker}&token=${KEY}`, { next: { revalidate: 300 } });
-      const data = await res.json();
+      const data = await fetchMarketQuote(ticker, KEY, 300);
       return {
         ticker,
         sectorName,
-        price: data.c ?? 0,
-        change: data.d ?? 0,
-        changePercent: data.dp ?? 0,
+        price: data.c,
+        change: data.d,
+        changePercent: data.dp,
       };
     })
   );
 
-  const sectors = results
-    .filter(r => r.status === 'fulfilled')
-    .map(r => (r as PromiseFulfilledResult<{ ticker: string; sectorName: string; price: number; change: number; changePercent: number }>).value);
-
-  return NextResponse.json(sectors);
+  return marketQuoteList(results);
 }

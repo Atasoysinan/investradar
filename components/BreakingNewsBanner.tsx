@@ -13,21 +13,17 @@ export default function BreakingNewsBanner() {
   const [articles, setArticles] = useState<BreakingArticle[]>([]);
   const [dismissed, setDismissed] = useState(false);
 
-  async function fetchBreaking() {
-    try {
-      const res = await fetch('/api/breaking-news');
-      const data = await res.json();
-      if (data.articles?.length > 0) setArticles(data.articles);
-    } catch { /* silently fail */ }
-  }
-
   useEffect(() => {
-    const initialLoad = window.setTimeout(() => { void fetchBreaking(); }, 0);
+    async function fetchBreaking() {
+      try {
+        const res = await fetch('/api/breaking-news');
+        const data = await res.json();
+        if (data.articles?.length > 0) setArticles(data.articles);
+      } catch { /* silently fail */ }
+    }
+    fetchBreaking();
     const interval = setInterval(fetchBreaking, 5 * 60 * 1000);
-    return () => {
-      window.clearTimeout(initialLoad);
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, []);
 
   if (dismissed || articles.length === 0) return null;

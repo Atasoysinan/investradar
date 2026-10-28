@@ -1,5 +1,9 @@
-import type { Metadata } from 'next';
+import { detailCoin, detailArticles, detailPrice, detailDirection, detailPercent } from '@/lib/detailData';
+import { loadCryptoMarket, loadDetailNews } from '@/lib/detailRequests';
 import Image from 'next/image';
+import type { Metadata } from 'next';
+
+export const dynamic = 'force-dynamic';
 
 export async function generateMetadata({
     params,
@@ -7,20 +11,16 @@ export async function generateMetadata({
     params: Promise<{ id: string }>;
 }): Promise<Metadata> {
     const { id } = await params;
-    const coinRes = await fetch(
-          `https://api.coingecko.com/api/v3/coins/${id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`,
-      { headers: { Accept: 'application/json' }, next: { revalidate: 60 } }
-        )
-          .then((r) => r.json())
-          .catch(() => null);
+    const market = await loadCryptoMarket(id);
+    const coin = detailCoin(market.data, id);
+    const coinName = coin?.name || id.charAt(0).toUpperCase() + id.slice(1);
+    const coinSymbol = coin?.symbol.toUpperCase() || '';
+    const coinImage = coin?.image || '/globe.svg';
+    const price = coin?.price ?? null;
   
-    const coinName: string = coinRes?.name || id.charAt(0).toUpperCase() + id.slice(1);
-    const coinSymbol: string = coinRes?.symbol?.toUpperCase() || '';
-    const coinImage: string = coinRes?.image?.large || '/og-default.png';
-    const price: number = coinRes?.market_data?.current_price?.usd || 0;
-  
-    const title = `${coinName} (${coinSymbol}) Price, News & Market Cap`;
-    const description = `Live ${coinName} price $${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}, market cap, and latest news. Track ${coinName} with real-time data on InvestRadar.`;
+    const title = `${coinName}${coinSymbol ? ` (${coinSymbol})` : ''} Price, News & Market Cap`;
+    const description = price === null ? `${coinName} market information and latest news on InvestRadar. Price data is temporarily unavailable.`
+      : `Live ${coinName} price ${detailPrice(price, 6)}, market cap, and latest news. Track ${coinName} with real-time data on InvestRadar.`;
   
     return {
           title,
@@ -43,9 +43,9 @@ export async function generateMetadata({
 
 import Link from 'next/link';
 
-const NEWS_DOMAINS = 'reuters.com,apnews.com,wsj.com,ft.com,cnbc.com,bloomberg.com,forbes.com,marketwatch.com,businessinsider.com,seekingalpha.com,benzinga.com';
 
 function timeAgo(dateStr: string) {
+  if (!dateStr) return 'Date unavailable';
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 60) return `${mins}m ago`;
@@ -54,36 +54,12 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-function formatCompact(n: number): string {
+function formatCompact(n: number | null): string {
+  if (n === null) return '—';
   if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
   if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
   if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
   return `$${n.toLocaleString()}`;
-}
-
-interface Article {
-  title: string;
-  description: string;
-  url: string;
-  urlToImage: string;
-  publishedAt: string;
-  source: { name: string };
-}
-
-interface CoinDetail {
-  id: string;
-  symbol: string;
-  name: string;
-  image: { large: string };
-  market_data: {
-    current_price: { usd: number };
-    price_change_percentage_24h: number;
-    market_cap: { usd: number };
-    total_volume: { usd: number };
-    circulating_supply: number;
-    ath: { usd: number };
-    ath_date: { usd: string };
-  };
 }
 
 export default async function CryptoDetailPage({
@@ -92,44 +68,26 @@ export default async function CryptoDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const newsKey = process.env.NEWSAPI_KEY;
-
-  const coinRes = await fetch(
-    `https://api.coingecko.com/api/v3/coins/${id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false`,
-    { headers: { 'Accept': 'application/json' }, next: { revalidate: 60 } }
-  ).then(r => r.json()).catch(() => null);
-
-  const coinName = coinRes?.name || id;
+  const market = await loadCryptoMarket(id);
+  const coin = detailCoin(market.data, id);
+  const coinName = coin?.name || id;
   const newsQuery = `${coinName} cryptocurrency price`;
 
-  const newsRes = await fetch(
-    `https://newsapi.org/v2/everything?q=${encodeURIComponent(newsQuery)}&domains=${NEWS_DOMAINS}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${newsKey}`,
-    { next: { revalidate: 300 } }
-  ).then(r => r.json()).catch(() => null);
-
-  const coin: CoinDetail | null = coinRes && !coinRes.error ? coinRes : null;
-
-  const articles: Article[] = newsRes?.articles
-    ? newsRes.articles.filter((a: Article) => a.title !== '[Removed]')
-    : [];
+  const news = market.read ? await loadDetailNews(newsQuery, market.read) : { data: null, issue: '' };
+  const articles = detailArticles(news.data);
 
   if (!coin) {
     return (
       <div className="min-h-screen bg-[#f5f6f7] flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-500 mb-4">Could not load data for &quot;{id}&quot;.</p>
+          <p role="status" className="text-gray-500 mb-4">{market.issue || <>Could not load data for &quot;{id}&quot;.</>}</p>
           <Link href="/markets" className="text-blue-600 hover:underline text-sm">← Back to Markets</Link>
         </div>
       </div>
     );
   }
 
-  const price = coin.market_data.current_price.usd;
-  const change24h = coin.market_data.price_change_percentage_24h;
-  const marketCap = coin.market_data.market_cap.usd;
-  const volume = coin.market_data.total_volume.usd;
-  const supply = coin.market_data.circulating_supply;
-  const ath = coin.market_data.ath.usd;
+  const { price, change: change24h, marketCap, volume, supply, ath } = coin;
 
   return (
     <div className="min-h-screen bg-[#f5f6f7] text-gray-900">
@@ -148,22 +106,21 @@ export default async function CryptoDetailPage({
 
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="flex items-center gap-4 mb-6">
-          <Image src={coin.image.large} alt={coin.name} width={64} height={64} className="rounded-full" priority />
+          <Image unoptimized width={64} height={64} src={coin.image} alt={coin.name} className="w-16 h-16 rounded-full" />
           <div>
             <h1 className="text-3xl font-bold text-gray-900">{coin.name}</h1>
-            <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">{coin.symbol}</span>
+            <span className="text-sm font-semibold text-gray-400 uppercase tracking-widest">{coin.symbol || '—'}</span>
           </div>
         </div>
 
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
+          {price === null && <p role="status" className="mb-4 text-gray-500 text-sm">Price data is temporarily unavailable.</p>}
           <div className="flex items-end gap-4 mb-5 flex-wrap">
             <span className="text-4xl font-bold text-gray-900">
-              {price >= 1
-                ? `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                : `$${price.toFixed(6)}`}
+              {detailPrice(price, 6)}
             </span>
-            <span className={`text-xl font-semibold ${change24h >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {change24h >= 0 ? '▲' : '▼'} {Math.abs(change24h).toFixed(2)}% (24h)
+            <span className={`text-xl font-semibold ${detailDirection(change24h)}`}>
+              {detailPercent(change24h)} (24h)
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 border-t border-gray-100 pt-4">
@@ -178,20 +135,19 @@ export default async function CryptoDetailPage({
             <div>
               <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Circulating Supply</p>
               <p className="font-semibold text-gray-800">
-                {supply ? `${(supply / 1e6).toFixed(2)}M ${coin.symbol.toUpperCase()}` : '—'}
+                {supply !== null ? `${(supply / 1e6).toFixed(2)}M${coin.symbol ? ` ${coin.symbol.toUpperCase()}` : ''}` : '—'}
               </p>
             </div>
             <div>
               <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">All-Time High</p>
               <p className="font-semibold text-gray-800">
-                {ath >= 1
-                  ? `$${ath.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `$${ath.toFixed(6)}`}
+                {detailPrice(ath, 6)}
               </p>
             </div>
           </div>
         </div>
 
+        {news.issue && <p role="status" className="mb-4 text-sm text-gray-600">{news.issue} News could not be loaded.</p>}
         {articles.length > 0 && (
           <div>
             <h2 className="text-xl font-bold text-gray-900 mb-4">Latest News</h2>
@@ -219,13 +175,11 @@ export default async function CryptoDetailPage({
                     )}
                   </div>
                   {a.urlToImage && (
-                    <Image
+                    <Image unoptimized width={96} height={72}
                       src={a.urlToImage}
                       alt=""
-                      width={96}
-                      height={72}
-                      sizes="96px"
-                      className="w-24 h-[72px] object-cover rounded flex-shrink-0 hidden sm:block"
+                      className="w-24 object-cover rounded flex-shrink-0 hidden sm:block"
+                      style={{ height: '72px' }}
                     />
                   )}
                 </a>

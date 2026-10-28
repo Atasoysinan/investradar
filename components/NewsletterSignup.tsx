@@ -1,35 +1,68 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+
+class SubscriptionRequestTimeout extends Error {}
 
 export default function NewsletterSignup() {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
 
+  const pending = useRef<AbortController | null>(null);
+  useEffect(() => () => { pending.current?.abort(); pending.current = null; }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (pending.current) return;
+    const controller = new AbortController();
+    pending.current = controller;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancel: () => void = () => {};
     setStatus('loading');
     setErrorMsg('');
 
     try {
-      const res = await fetch('/api/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
+      // Allow the server's Redis admission and ten-second provider budget to finish.
+      const { res, data } = await Promise.race([
+        new Promise<never>((_, reject) => {
+          cancel = () => reject(new Error('Subscription cancelled'));
+          controller.signal.addEventListener('abort', cancel, { once: true });
+          timer = setTimeout(() => {
+            reject(new SubscriptionRequestTimeout());
+            controller.abort();
+          }, 20000);
+        }),
+        (async () => {
+          const res = await fetch('/api/subscribe', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }), signal: controller.signal,
+          });
+          if (controller.signal.aborted) throw new Error('Subscription cancelled');
+          return { res, data: await res.json() };
+        })(),
+      ]);
+      if (pending.current !== controller) return;
 
       if (!res.ok) {
-        setErrorMsg(data.error || 'Something went wrong, try again.');
+        setErrorMsg(typeof data?.error === 'string' ? data.error : 'Something went wrong, try again.');
         setStatus('error');
-      } else {
+      } else if (data?.success === true) {
         setStatus('success');
         setEmail('');
+      } else {
+        throw new Error('Invalid subscription response');
       }
-    } catch {
-      setErrorMsg('Something went wrong, try again.');
+    } catch (error) {
+      if (pending.current !== controller) return;
+      setErrorMsg(error instanceof SubscriptionRequestTimeout
+        ? 'This request took too long. Check your inbox before trying again.'
+        : 'Something went wrong, try again.');
       setStatus('error');
+    } finally {
+      clearTimeout(timer);
+      controller.signal.removeEventListener('abort', cancel);
+      if (pending.current === controller) pending.current = null;
     }
   };
 
@@ -63,7 +96,7 @@ export default function NewsletterSignup() {
       )}
 
       {status === 'error' && (
-        <p className="text-red-500 text-xs mt-3">❌ {errorMsg}</p>
+        <p role="alert" className="text-red-500 text-xs mt-3">❌ {errorMsg}</p>
       )}
     </div>
   );
