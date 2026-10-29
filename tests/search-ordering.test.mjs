@@ -68,6 +68,13 @@ function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: 
   return {
     timers, expire(ms) { for (const [id, t] of [...timers]) if (t.ms <= ms) { timers.delete(id); t.fn(); } }, briefsError: () => state[4],
     requests, text: () => text(tree),
+    briefLinks: () => {
+      const panel = nodes(tree).find(n => n.type === 'aside' && text(n).includes("Today's Market Brief"));
+      return nodes(panel).filter(n => n.type === 'li').map(item => ({
+        headline: text(nodes(item).find(n => n.type === 'p')),
+        url: nodes(item).find(n => n.type === 'a')?.props.href,
+      }));
+    },
     search(value) { nodes(tree).find(n => n.type === 'input' && n.props.placeholder.startsWith('Search')).props.onChange({ target: { value } }); render(); },
     submit() { nodes(tree).find(n => n.type === 'form' && n.props.onSubmit).props.onSubmit({ preventDefault() {} }); render(); },
     clear() { nodes(tree).find(n => n.type === 'button' && text(n) === 'Briefing').props.onClick(); render(); },
@@ -141,6 +148,36 @@ for (const [status, message] of [[429, 'AI summaries are busy. Please try again 
 test('successful AI summaries render independently of pending news', async () => {
   const h = harness({ holdGlobalNews: true, briefsResponse: () => Response.json({ status: 'ok', briefs: [{ headline: 'Independent AI headline', summary: 'Independent summary.', sources: [{name: 'Test', url: 'https://example.test/story'}] }] }) });
   await h.settle(); assert.ok(h.text().includes('Independent AI headline')); h.cleanup();
+});
+
+test('a single AI selection matching the hero remains in the market brief panel', async () => {
+  const headline = 'DoorDash bid could be announced Thursday, sources say';
+  const h = harness({ briefsResponse: () => Response.json({ status: 'ok', briefs: [{ headline, summary: headline, sources: [{ name: 'Fixture', url: 'https://example.test/selected' }] }] }) });
+  try {
+    h.requests[0].resolve(result(headline)); await h.settle();
+    assert.deepEqual(h.briefLinks(), [{ headline, url: 'https://example.test/selected' }]);
+  } finally { h.cleanup(); }
+});
+
+test('the market brief omits an entity-encoded hero duplicate when another AI selection exists', async () => {
+  const h = harness({ briefsResponse: () => Response.json({ status: 'ok', briefs: [
+    { headline: 'Markets &amp; shares', summary: '', sources: [{ name: 'Fixture', url: 'https://example.test/hero' }] },
+    { headline: 'Independent story', summary: '', sources: [{ name: 'Fixture', url: 'https://example.test/other' }] },
+  ] }) });
+  try {
+    h.requests[0].resolve(result('Markets & shares')); await h.settle();
+    assert.deepEqual(h.briefLinks(), [{ headline: 'Independent story', url: 'https://example.test/other' }]);
+  } finally { h.cleanup(); }
+});
+
+test('empty AI selections still fall back to available news headlines', async () => {
+  const h = harness();
+  try {
+    h.requests[0].resolve(Response.json({ status: 'ok', articles: Array.from({ length: 5 }, (_, i) => ({
+      title: `News ${i}`, description: '', url: `https://example.test/news-${i}`, publishedAt: '', source: { name: 'Fixture' },
+    })) })); await h.settle();
+    assert.deepEqual(h.briefLinks(), [3, 4].map(i => ({ headline: `News ${i}`, url: `https://example.test/news-${i}` })));
+  } finally { h.cleanup(); }
 });
 
 for (const phase of ['headers', 'body']) test(`homepage news timeout bounds stalled ${phase} and ignores late data`, async () => {

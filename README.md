@@ -76,6 +76,12 @@ Atomic Redis admission allows five requests per client per minute, ten globally 
 Rate limits return `429` with `Retry-After`. All responses are non-cacheable and the route is dynamic so cached responses cannot bypass admission. Successful responses still use the configured Groq model. The homepage displays a friendly unavailable, timeout or busy message rather than silently treating failure as an empty digest.
 
 
+### Source-bound AI briefs
+
+The model selects and ranks article IDs; it does not supply displayed prose or citations. Each brief uses one validated HTTP(S) source URL, the original headline and the original description (or the headline if the description is missing or oversized). This preserves source uncertainty and attribution without relying on model paraphrasing or merging unrelated stories. Descriptions are included in the selection prompt as untrusted JSON data. Unknown IDs and duplicate selections cannot add citations; a response with no valid selections returns a generic non-cacheable error. Source text itself is not independently fact-checked, and these are AI-selected excerpts rather than multi-source generated summaries. Existing model configuration, request deadline, admission limits and response fields remain intact.
+
+If a nonempty news pool contains no valid articles, the briefs endpoint returns a generic non-cacheable `502` before calling the AI provider, including in debug mode. A genuinely empty news pool remains a successful empty result; mixed pools retain their valid articles.
+
 ## Market and social request deadlines
 
 Finnhub quotes/news/profiles, CoinGecko, Yahoo, Reddit and Stocktwits requests have a five-second limit including JSON body reading. Multi-stage market, trending and Stocktwits stream requests share an eight-second budget; expired work cannot start another provider request. Healthy partial quotes/streams remain available using the existing partial-result signals. Provider failures retain generic responses and do not generate replacement prices or conversations.

@@ -46,12 +46,12 @@ test('production briefs preserve configured model and JSON-object response forma
   const api = route('app/api/briefs/route.ts', { VERCEL_ENV: 'production', GROQ_API_KEY: 'test-key', GROQ_MODEL: 'configured-model' }, async (url, options) => {
     if (String(url).includes('/api/news')) return Response.json({ articles: Array.from({ length: 6 }, (_, i) => ({ title: `Headline ${i}`, url: `https://example.test/${i}`, description: '', source: { name: 'Example' } })) });
     body = JSON.parse(options.body);
-    return Response.json({ choices: [{ message: { content: JSON.stringify({ briefs: [{ headline: 'Brief headline', summary: 'Brief summary.', indices: [0, 1] }] }) } }] });
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ briefs: [{ articleId: JSON.parse(body.messages[0].content.split('Articles:\n')[1])[0].articleId }] }) } }] });
   });
   const response = await api.GET(new Request('https://example.test/api/briefs'));
   assert.equal(body.model, 'configured-model'); assert.equal(body.max_completion_tokens, 900);
   assert.equal(body.reasoning_effort, 'low'); assert.deepEqual(body.response_format, { type: 'json_object' });
-  assert.equal((await response.json()).briefs[0].headline, 'Brief headline');
+  assert.equal((await response.json()).briefs[0].headline, 'Headline 0');
 });
 
 for (const path of ['app/api/market/route.ts', 'app/api/sectors/route.ts']) {
