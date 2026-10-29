@@ -263,6 +263,22 @@ function deduplicate(articles: Article[]): Article[] {
   return out;
 }
 
+function isPromotion(article: Article): boolean {
+  // Match shopping destinations, not generic financial words such as deal or coupon.
+  try {
+    const path = decodeURIComponent(new URL(article.url).pathname).toLowerCase();
+    if (/\/(?:coupons?|coupon-codes?|promo-codes?|discount-codes?|voucher-codes?)(?:\/|$)/.test(path)
+      || /(?:^|[/-])(?:coupon|promo|discount|voucher)-codes?\/?$/.test(path)
+      || /\/shopping\/(?:deals?|offers?)(?:\/|$)/.test(path)) return true;
+  } catch { /* An invalid URL is not evidence of promotional content. */ }
+  const title = article.title;
+  // Generic deals, offers and savings also describe mergers and company reporting.
+  // Require coupon/code language or the format of an explicit shopping guide/CTA.
+  const shopping = /\b(?:coupon|promo(?:tional)?|discount|voucher)\s+codes?\b|\bcoupons?\s*:|^best\b[^:]*\bdeals?\s*:|\bsale\s*:\s*(?:save\b|buy\s+one\b)/i.test(title);
+  const savings = /\b\d+(?:\.\d+)?\s*%\s+off\b|[$£€]\s*\d+(?:\.\d+)?\s+off\b|\bsave\s+(?:up\s+to\s+)?(?:\d+(?:\.\d+)?\s*%|[$£€]\s*\d+)|\bbuy\s+one[,]?\s+get\s+one\b/i.test(title);
+  return shopping && savings;
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
@@ -311,7 +327,8 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(bTime)) return -1;
     return bTime - aTime;
   });
-  const deduped = deduplicate(q ? pool.filter((a) => ((a.title || '') + ' ' + (a.description || '')).toLowerCase().includes(q.toLowerCase())) : pool);
+  const editorial = pool.filter(article => !isPromotion(article));
+  const deduped = deduplicate(q ? editorial.filter((a) => ((a.title || '') + ' ' + (a.description || '')).toLowerCase().includes(q.toLowerCase())) : editorial);
   const apiSlots = deduped.filter(a => a.provider === 'api').slice(0, 2);
   const rest = deduped.filter(a => a.provider !== 'api');
   const articles = (() => { const out = rest.slice(); const positions = [3, 6]; apiSlots.forEach((it, k) => { const p = Math.min(positions[k] ?? out.length, out.length); out.splice(p, 0, it); }); return out.slice(0, 30); })();
