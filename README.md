@@ -82,6 +82,10 @@ The model selects and ranks article IDs; it does not supply displayed prose or c
 
 If a nonempty news pool contains no valid articles, the briefs endpoint returns a generic non-cacheable `502` before calling the AI provider, including in debug mode. A genuinely empty news pool remains a successful empty result; mixed pools retain their valid articles.
 
+## News promotion filtering
+
+The shared `/api/news` pool excludes coupon/code shopping destinations and titles that combine explicit coupon/code language or a shopping guide/call-to-action format with savings offers. Generic deal, offer, sale and savings words alone are insufficient: merger cost savings, bond coupon savings and reporting on retail price wars remain available. Filtering runs before search, deduplication and output limits, so homepage and AI news selection use the same filtered pool. Healthy promotion-only sources produce a successful empty result; provider failures retain the existing error and partial-result behavior. This conservative rule-based filter is not a general relevance classifier.
+
 ## Market and social request deadlines
 
 Finnhub quotes/news/profiles, CoinGecko, Yahoo, Reddit and Stocktwits requests have a five-second limit including JSON body reading. Multi-stage market, trending and Stocktwits stream requests share an eight-second budget; expired work cannot start another provider request. Healthy partial quotes/streams remain available using the existing partial-result signals. Provider failures retain generic responses and do not generate replacement prices or conversations.

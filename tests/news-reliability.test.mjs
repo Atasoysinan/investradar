@@ -354,3 +354,74 @@ test('RSS: nonempty unusable items cannot masquerade as a successful empty feed'
     ? new Response('<rss><channel><item><title>No link</title></item></channel></rss>') : new Response('', { status: 503 }));
   assert.equal((await get()).status, 503);
 });
+
+const promotionRows = [
+  { title: 'Norton Coupon Codes: Up to 58% Off', url: 'https://www.wired.com/story/norton-coupon-code/' },
+  { title: 'Hungryroot Coupon Codes: 30% Off This November 2026', url: 'https://www.wired.com/story/hungryroot-promo-code/' },
+  { title: 'Loop Earplugs Discount Codes: 40% Off', url: 'https://www.wired.com/story/loop-earplugs-discount-code/' },
+  { title: 'Members only savings', url: 'https://example.test/coupons/retailer' },
+  { title: 'Norton Promo&#32;Codes: Save up to &#36;20', url: 'https://example.test/news/offer-1' },
+  { title: 'Best laptop deals: Save up to 40%', url: 'https://example.test/news/offer-2' },
+  { title: 'Shoe sale: Buy one get one free', url: 'https://example.test/news/offer-3' },
+  { title: 'Limited voucher offer', url: 'https://example.test/shopping/deals/today' },
+  { title: 'Retailer Coupons: 25% Off Today', url: 'https://example.test/news/offer-4' },
+];
+const editorialRows = [
+  { title: 'Treasury bond coupon payments increase after auction', url: 'https://example.test/bonds/treasury' },
+  { title: 'Merger deal creates a new semiconductor group', url: 'https://example.test/deals/merger' },
+  { title: 'Retailer discounts lift quarterly revenue and profits', url: 'https://example.test/retail/earnings' },
+  { title: 'Executive promotion signals a change in strategy', url: 'https://example.test/promotions/executive' },
+  { title: 'Coupon code fraud investigation leads to charges', url: 'https://example.test/story/coupon-code-fraud' },
+  { title: 'Shares trade at a 30% discount to net asset value', url: 'https://example.test/markets/value' },
+  { title: 'Merger deal could save $500 million annually', url: 'https://example.test/business/merger-savings' },
+  { title: 'Retailers offer 50% off as holiday price war cuts profits', url: 'https://example.test/business/retail-price-war' },
+];
+for (const host of Object.keys(fields)) test(`${host}: remove shopping promotions but retain editorial news`, async () => {
+  // Other healthy empty sources isolate filtering from availability errors.
+  const get = newsHandler(async url => {
+    const provider = fields[new URL(url).hostname];
+    return provider ? Response.json({ [provider]: new URL(url).hostname === host ? [...promotionRows, ...editorialRows] : [] }) : new Response('<rss><channel></channel></rss>');
+  });
+  const response = await get(); const body = await response.json();
+  assert.equal(response.status, 200); assert.equal(response.headers.get('x-news-data-partial'), null);
+  const expected = ['newsdata.io', 'api.mediastack.com'].includes(host) ? editorialRows.slice(0, 2) : editorialRows;
+  assert.deepEqual(body.articles.map(row => row.url), expected.map(row => row.url));
+});
+for (const kind of ['RSS', 'Atom']) test(`${kind}: shopping promotions never enter the public news pool`, async () => {
+  const rows = [...promotionRows.slice(0, 2), ...editorialRows];
+  const xml = kind === 'RSS' ? `<rss><channel>${rows.map(row => `<item><title><![CDATA[${row.title}]]></title><link>${row.url}</link></item>`).join('')}</channel></rss>`
+    : `<feed xmlns="http://www.w3.org/2005/Atom">${rows.map(row => `<entry><title><![CDATA[${row.title}]]></title><link href="${row.url}" /></entry>`).join('')}</feed>`;
+  const get = newsHandler(async url => fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] })
+    : new Response(url === 'https://www.wired.com/feed/rss' ? xml : '<rss><channel></channel></rss>'));
+  const response = await get(); assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).articles.map(row => row.url), editorialRows.map(row => row.url));
+});
+test('search cannot reintroduce promotional results', async () => {
+  const get = newsHandler(async url => new URL(url).hostname === 'newsapi.org' ? Response.json({ articles: promotionRows })
+    : fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] }) : new Response('<rss><channel></channel></rss>'));
+  const response = await get('?q=Norton'); assert.equal(response.status, 200); assert.deepEqual((await response.json()).articles, []);
+});
+test('healthy promotion-only feeds produce a genuine successful empty result', async () => {
+  const get = newsHandler(async url => fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: promotionRows }) : new Response('<rss><channel></channel></rss>'));
+  const response = await get(); assert.equal(response.status, 200); assert.equal(response.headers.get('x-news-data-partial'), null);
+  assert.deepEqual((await response.json()).articles, []);
+});
+
+for (const row of editorialRows.slice(-2)) for (const host of Object.keys(fields)) {
+  test(`${host}: savings in financial reporting stays available in search: ${row.title}`, async () => {
+    const get = newsHandler(async url => {
+      const provider = fields[new URL(url).hostname];
+      return provider ? Response.json({ [provider]: new URL(url).hostname === host ? [row, ...promotionRows] : [] })
+        : new Response('<rss><channel></channel></rss>');
+    });
+    const response = await get(`?q=${encodeURIComponent(row.title)}`);
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).articles.map(article => article.title), [row.title]);
+  });
+}
+test('bond coupon savings do not become a shopping promotion', async () => {
+  const row = { title: 'Bond coupon change could save $50 million for issuer', url: 'https://example.test/bonds/savings' };
+  const get = newsHandler(async url => new URL(url).hostname === 'newsapi.org' ? Response.json({ articles: [row] })
+    : fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] }) : new Response('<rss><channel></channel></rss>'));
+  assert.deepEqual((await (await get()).json()).articles.map(article => article.title), [row.title]);
+});
