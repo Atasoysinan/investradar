@@ -198,8 +198,9 @@ export default function Home() {
   const hero = ordered[0];
   const supporting = ordered.slice(1, 3);
   const latest = ordered.slice(3, 11);
+  const nonHeroBriefs = briefs.filter(item => decodeHtml(item.headline) !== decodeHtml(hero?.title || ''));
   const briefItems = briefs.length
-    ? briefs.filter(item => item.headline !== decodeHtml(hero?.title || '')).slice(0, 5)
+    ? (nonHeroBriefs.length ? nonHeroBriefs : briefs).slice(0, 5)
     : latest.slice(0, 5).map(article => ({ headline: decodeHtml(article.title), summary: '', sources: [{ name: article.source?.name || 'Source', url: article.url }] }));
 
   const marketBrief = (
