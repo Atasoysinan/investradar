@@ -84,6 +84,8 @@ If a nonempty news pool contains no valid articles, the briefs endpoint returns 
 
 ## News promotion filtering
 
+An opening "Lowest Price Alert" label followed by a colon or dash is also treated as shopping language when the title contains an explicit savings offer. Merely reporting on low prices or price alerts does not trigger this rule.
+
 The shared `/api/news` pool excludes coupon/code shopping destinations and titles that combine explicit coupon/code language or a shopping guide/call-to-action format with savings offers. Generic deal, offer, sale and savings words alone are insufficient: merger cost savings, bond coupon savings and reporting on retail price wars remain available. Filtering runs before search, deduplication and output limits, so homepage and AI news selection use the same filtered pool. Healthy promotion-only sources produce a successful empty result; provider failures retain the existing error and partial-result behavior. This conservative rule-based filter is not a general relevance classifier.
 
 ## Market and social request deadlines

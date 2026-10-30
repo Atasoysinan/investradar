@@ -274,7 +274,7 @@ function isPromotion(article: Article): boolean {
   const title = article.title;
   // Generic deals, offers and savings also describe mergers and company reporting.
   // Require coupon/code language or the format of an explicit shopping guide/CTA.
-  const shopping = /\b(?:coupon|promo(?:tional)?|discount|voucher)\s+codes?\b|\bcoupons?\s*:|^best\b[^:]*\bdeals?\s*:|\bsale\s*:\s*(?:save\b|buy\s+one\b)/i.test(title);
+  const shopping = /\b(?:coupon|promo(?:tional)?|discount|voucher)\s+codes?\b|\bcoupons?\s*:|^best\b[^:]*\bdeals?\s*:|\bsale\s*:\s*(?:save\b|buy\s+one\b)|^lowest\s+price\s+alert\s*[:–—-]/i.test(title);
   const savings = /\b\d+(?:\.\d+)?\s*%\s+off\b|[$£€]\s*\d+(?:\.\d+)?\s+off\b|\bsave\s+(?:up\s+to\s+)?(?:\d+(?:\.\d+)?\s*%|[$£€]\s*\d+)|\bbuy\s+one[,]?\s+get\s+one\b/i.test(title);
   return shopping && savings;
 }
