@@ -356,6 +356,7 @@ test('RSS: nonempty unusable items cannot masquerade as a successful empty feed'
 });
 
 const promotionRows = [
+  { title: 'Lowest Price Alert: This Blink Video Doorbell & Camera Bundle Is Over 70% Off', description: 'Get Blink indoor cameras at over half off and Norton antivirus for under $20 right now.', url: 'https://www.pcmag.com/deals/amazon-deals-of-the-day-blink-video-doorbell-camera-lowest-price-oct-29' },
   { title: 'Norton Coupon Codes: Up to 58% Off', url: 'https://www.wired.com/story/norton-coupon-code/' },
   { title: 'Hungryroot Coupon Codes: 30% Off This November 2026', url: 'https://www.wired.com/story/hungryroot-promo-code/' },
   { title: 'Loop Earplugs Discount Codes: 40% Off', url: 'https://www.wired.com/story/loop-earplugs-discount-code/' },
@@ -424,4 +425,17 @@ test('bond coupon savings do not become a shopping promotion', async () => {
   const get = newsHandler(async url => new URL(url).hostname === 'newsapi.org' ? Response.json({ articles: [row] })
     : fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] }) : new Response('<rss><channel></channel></rss>'));
   assert.deepEqual((await (await get()).json()).articles.map(article => article.title), [row.title]);
+});
+
+for (const [title, excluded] of [
+  ['LOWEST PRICE ALERT: Save up to $20 on this camera bundle', true],
+  ['Lowest Price Alert — This camera bundle is 70% off', true],
+  ['Retailers issue lowest price alerts as 70% off campaigns cut profits', false],
+  ['Lowest price alert: Treasury yields reach an annual low', false],
+]) test(`lowest-price title filtering: ${title}`, async () => {
+  const row = { title, url: 'https://example.test/business/report' };
+  const get = newsHandler(async url => new URL(url).hostname === 'newsapi.org' ? Response.json({ articles: [row] })
+    : fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] }) : new Response('<rss><channel></channel></rss>'));
+  const response = await get(); assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).articles.map(article => article.title), excluded ? [] : [title]);
 });
