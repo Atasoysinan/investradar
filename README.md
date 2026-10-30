@@ -84,6 +84,14 @@ If a nonempty news pool contains no valid articles, the briefs endpoint returns 
 
 ## News promotion filtering
 
+Product-review labels are checked against their preceding subject: government/regulator actions, formal review verbs and market/security/compliance review topics do not count as consumer evaluations. Text after the review label is not used for that distinction, so a consumer camera review or a phone review discussing security features remains filterable.
+
+"Gifts for" alone is not exclusion evidence. Recipient headings must start the title, have a colon-delimited guide format and include a recognized product category. Gift-based matching is suppressed by explicit government, ethics, rules or compliance context; ordinary policy and banking reporting remains available.
+
+"Best" product-list labels must lead into a recognized product category, with up to three recognized brand/platform names or product descriptors (for example Samsung TVs, Apple laptops or Sony wireless headphones). This is a maintained vocabulary, not arbitrary words between "best" and the product. A company name such as Best Buy is not enough to classify a company news headline as a guide; explicit buying guides and product reviews from that retailer are still filtered.
+
+The same pool also excludes non-financial gift guides and consumer-product reviews/buying guides, including product-specific "best" lists. Explicit financial title context preserves personal-finance guides and company reporting (for example ETFs, credit cards, gift taxes, shares and earnings). Generic uses of "review" or "guide" alone are insufficient. This classification uses the headline, not incidental shopping or financial words in the description.
+
 An opening "Lowest Price Alert" label followed by a colon or dash is also treated as shopping language when the title contains an explicit savings offer. Merely reporting on low prices or price alerts does not trigger this rule.
 
 The shared `/api/news` pool excludes coupon/code shopping destinations and titles that combine explicit coupon/code language or a shopping guide/call-to-action format with savings offers. Generic deal, offer, sale and savings words alone are insufficient: merger cost savings, bond coupon savings and reporting on retail price wars remain available. Filtering runs before search, deduplication and output limits, so homepage and AI news selection use the same filtered pool. Healthy promotion-only sources produce a successful empty result; provider failures retain the existing error and partial-result behavior. This conservative rule-based filter is not a general relevance classifier.
