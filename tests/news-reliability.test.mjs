@@ -104,6 +104,8 @@ test('the news UI hides HTTP, JSON parsing and provider error details', async ()
       compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
     }).outputText, {
       exports, URL, Date, AbortController,
+      document: { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} },
+      setTimeout, clearTimeout,
     setTimeout: (callback, ms) => setTimeout(callback, timeoutMs ?? ms), clearTimeout, AbortController,
       setInterval: () => 0, clearInterval: () => {},
       window: { addEventListener: () => {}, removeEventListener: () => {} },

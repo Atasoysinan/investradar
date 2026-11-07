@@ -7,17 +7,20 @@ import ts from 'typescript';
 import { decodeHtml } from './support/decode-html.mjs';
 
 const source = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
-function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: [] }), holdGlobalNews = false, fakeTimers = false } = {}) {
+function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: [] }), holdGlobalNews = false, fakeTimers = false, hidden = false } = {}) {
   const state = [], deps = [], cleanups = [], scheduled = [], requests = [];
   const timers = new Map(); let timerId = 0;
-  const timerOptions = fakeTimers ? { setTimeout: (fn, ms) => { timers.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timers.delete(id) } : {};
+  const pageTimers = { setTimeout: (fn, ms) => { timers.set(++timerId, { fn, ms }); return timerId; }, clearTimeout: id => timers.delete(id) };
+  const timerOptions = fakeTimers ? pageTimers : {};
+  const listeners = new Set();
+  const document = { visibilityState: hidden ? 'hidden' : 'visible', addEventListener: (_, fn) => listeners.add(fn), removeEventListener: (_, fn) => listeners.delete(fn) };
   const intervals = new Map();
   let cursor = 0, effectCursor = 0, tree, intervalId = 0;
   const exports = {};
   vm.runInNewContext(ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, {
-    exports, URL, Date, AbortController,
+    exports, URL, Date, AbortController, document, ...pageTimers,
     window: { addEventListener() {}, removeEventListener() {} },
     setInterval: (fn, ms) => { intervals.set(++intervalId, { fn, ms }); return intervalId; },
     clearInterval: id => intervals.delete(id),
@@ -54,6 +57,7 @@ function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: 
     },
   });
   function render() { cursor = 0; effectCursor = 0; tree = exports.default(); scheduled.splice(0).forEach(run => run()); }
+  function expire(ms) { for (const [id, t] of [...timers]) if (t.ms <= ms) { timers.delete(id); t.fn(); } }
   function nodes(node) {
     if (!node || typeof node !== 'object') return [];
     if (Array.isArray(node)) return node.flatMap(nodes);
@@ -66,7 +70,8 @@ function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: 
   }
   render();
   return {
-    timers, expire(ms) { for (const [id, t] of [...timers]) if (t.ms <= ms) { timers.delete(id); t.fn(); } }, briefsError: () => state[4],
+    timers, expire, intervals, listeners, briefsError: () => state[4],
+    visibility(value) { document.visibilityState = value; listeners.forEach(fn => fn()); render(); },
     requests, text: () => text(tree),
     briefLinks: () => {
       const panel = nodes(tree).find(n => n.type === 'aside' && text(n).includes("Today's Market Brief"));
@@ -75,8 +80,8 @@ function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: 
         url: nodes(item).find(n => n.type === 'a')?.props.href,
       }));
     },
-    search(value) { nodes(tree).find(n => n.type === 'input' && n.props.placeholder.startsWith('Search')).props.onChange({ target: { value } }); render(); },
-    submit() { nodes(tree).find(n => n.type === 'form' && n.props.onSubmit).props.onSubmit({ preventDefault() {} }); render(); },
+    search(value, wait = true) { nodes(tree).find(n => n.type === 'input' && n.props.placeholder.startsWith('Search')).props.onChange({ target: { value } }); render(); if (wait) { expire(300); render(); } },
+    submit() { nodes(tree).find(n => n.type === 'form' && n.props.onSubmit).props.onSubmit({ preventDefault() {} }); render(); expire(300); render(); },
     clear() { nodes(tree).find(n => n.type === 'button' && text(n) === 'Briefing').props.onClick(); render(); },
     poll() { [...intervals.values()].find(i => i.ms === 300000).fn(); render(); },
     async settle() { await new Promise(resolve => setImmediate(resolve)); render(); },
@@ -85,6 +90,60 @@ function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: 
   };
 }
 const result = title => Response.json({ status: 'ok', articles: [{title,description:'',url:'https://example.test/story',publishedAt:'2026-10-24T00:00:00Z',source:{name:'Test'}}] });
+
+test('rapid typing starts only the final search after 300ms and cancels the old response immediately', async () => {
+  const h = harness();
+  try {
+    const old = h.requests[0];
+    for (const value of ['N', 'Nv', 'Nvidia']) h.search(value, false);
+    assert.equal(old.signal.aborted, true); assert.equal(h.requests.length, 1);
+    old.resolve(result('Stale home story')); await h.settle(); assert.deepEqual(h.titles(), []);
+    h.expire(299); assert.equal(h.requests.length, 1);
+    h.expire(300); assert.equal(h.requests.length, 2);
+    assert.equal(h.requests[1].url, '/api/news?q=Nvidia');
+    h.requests[1].resolve(result('Nvidia result')); await h.settle();
+    assert.deepEqual(h.titles(), ['Nvidia result']);
+  } finally { h.cleanup(); }
+});
+
+test('clearing or unmounting cancels a pending search before it reaches the API', () => {
+  const h = harness();
+  h.search('Apple', false); h.clear(); h.expire(300);
+  assert.equal(h.requests.length, 2); assert.equal(h.requests.at(-1).url, '/api/news?region=us');
+  h.search('Nvidia', false); h.cleanup(); h.expire(300);
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.intervals.size, 0); assert.equal(h.listeners.size, 0);
+});
+
+test('hidden homepage cancels polling and in-flight news, then resumes one polling loop', async () => {
+  const h = harness();
+  try {
+    const queuedPoll = [...h.intervals.values()][0].fn;
+    const old = h.requests[0]; h.visibility('hidden');
+    assert.equal(old.signal.aborted, true); assert.equal(h.intervals.size, 0);
+    queuedPoll(); assert.equal(h.requests.length, 1);
+    old.resolve(result('Hidden stale result')); await h.settle();
+    assert.deepEqual(h.titles(), []); assert.equal(h.error(), '');
+    h.visibility('visible'); assert.equal(h.requests.length, 2); assert.equal(h.intervals.size, 1);
+    h.requests[1].resolve(result('Resumed result')); await h.settle();
+    assert.deepEqual(h.titles(), ['Resumed result']);
+    for (let i = 0; i < 3; i++) { h.visibility('hidden'); h.visibility('visible'); }
+    assert.equal(h.intervals.size, 1);
+    const queuedAfterUnmount = [...h.intervals.values()][0].fn, count = h.requests.length, wasLoading = h.loading();
+    h.cleanup(); queuedAfterUnmount();
+    assert.equal(h.requests.length, count); assert.equal(h.loading(), wasLoading);
+  } finally { h.cleanup(); }
+});
+
+test('a page opened hidden defers news and keeps only the latest typed query on resume', () => {
+  const h = harness({ hidden: true });
+  try {
+    assert.equal(h.requests.length, 0); assert.equal(h.intervals.size, 0);
+    h.search('Apple', false); h.expire(300); assert.equal(h.requests.length, 0);
+    h.search('Nvidia', false); h.visibility('visible'); h.expire(300);
+    assert.equal(h.requests.length, 1); assert.equal(h.requests[0].url, '/api/news?q=Nvidia');
+  } finally { h.cleanup(); }
+});
 
 test('a late result for an older query cannot overwrite a newer result', async () => {
   const h = harness(); h.search('Apple'); const old = h.requests.at(-1);
