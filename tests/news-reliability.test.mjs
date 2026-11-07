@@ -439,3 +439,155 @@ for (const [title, excluded] of [
   const response = await get(); assert.equal(response.status, 200);
   assert.deepEqual((await response.json()).articles.map(article => article.title), excluded ? [] : [title]);
 });
+
+const consumerGuides = [
+  { title: 'Gift Ideas for Friends (2026): Wellness Tech, Kitchen Essentials', url: 'https://www.wired.com/story/gifts-for-friends/' },
+  { title: 'Samsung S95H OLED TV Review (2026)', url: 'https://www.wired.com/review/samsung-s95h/' },
+  { title: 'The Best Leaf Blower We’ve Tested Is Ready for Halloween', url: 'https://www.wired.com/story/ego-blower-sale-tp-cannon-october-2026/' },
+  { title: 'Best Laptops (2026): Our Top Picks', url: 'https://example.test/laptops' },
+  { title: 'How to Choose a Coffee Maker: Buying Guide', url: 'https://example.test/coffee' },
+  { title: 'Holiday Gift Guide: Kitchen Essentials', url: 'https://example.test/holiday' },
+  { title: 'Best noise-cancelling headphones for travel', url: 'https://example.test/headphones' },
+  { title: 'Best Buy laptop buying guide: Which model should you choose?', url: 'https://example.test/best-buy-guide' },
+  { title: 'Best Buy headphone review: Our verdict', url: 'https://example.test/best-buy-review' },
+  { title: 'Best Samsung TVs for every budget', url: 'https://example.test/samsung-tvs' },
+  { title: 'The best Apple laptops for students', url: 'https://example.test/apple-laptops' },
+  { title: 'Best Sony wireless headphones for travel', url: 'https://example.test/sony-headphones' },
+  { title: 'Best Bose noise-cancelling headphones', url: 'https://example.test/bose-headphones' },
+  { title: 'Best Dyson vacuum cleaners for small homes', url: 'https://example.test/dyson-vacuums' },
+  { title: 'Best Android phones (2026)', url: 'https://example.test/android-phones' },
+];
+const financialGuides = [
+  { title: 'Apple shares rise after new iPhone launch', url: 'https://example.test/apple' },
+  { title: 'Samsung earnings beat forecasts despite weak TV sales', url: 'https://example.test/samsung' },
+  { title: 'Best ETFs for retirement in 2026', url: 'https://example.test/etfs' },
+  { title: 'The best gifts for children: Stocks or bonds?', url: 'https://example.test/gifts' },
+  { title: 'Best credit cards for travel rewards', url: 'https://example.test/cards' },
+  { title: 'Annual economic review warns of slower growth', url: 'https://example.test/economy' },
+  { title: 'Gift tax guide: Rules for transferring shares', url: 'https://example.test/tax' },
+  { title: 'Samsung TV Review: Analysts raise revenue forecasts', url: 'https://example.test/analysts' },
+];
+for (const host of Object.keys(fields)) test(`${host}: consumer guides are removed while finance guides and reporting survive`, async () => {
+  const get = newsHandler(async url => {
+    const field = fields[new URL(url).hostname];
+    return field ? Response.json({ [field]: new URL(url).hostname === host ? [...consumerGuides, ...financialGuides] : [] }) : new Response('<rss><channel></channel></rss>');
+  });
+  const response = await get(); assert.equal(response.status, 200);
+  const expected = ['newsdata.io', 'api.mediastack.com'].includes(host) ? financialGuides.slice(0, 2) : financialGuides;
+  assert.deepEqual((await response.json()).articles.map(a => a.url), expected.map(a => a.url));
+});
+for (const kind of ['RSS', 'Atom']) test(`${kind}: gift and product guides cannot displace financial news`, async () => {
+  const rows = [...consumerGuides.slice(0, 2), ...financialGuides];
+  const xml = kind === 'RSS' ? `<rss><channel>${rows.map(a => `<item><title><![CDATA[${a.title}]]></title><link>${a.url}</link></item>`).join('')}</channel></rss>`
+    : `<feed xmlns="http://www.w3.org/2005/Atom">${rows.map(a => `<entry><title><![CDATA[${a.title}]]></title><link href="${a.url}" /></entry>`).join('')}</feed>`;
+  const get = newsHandler(async url => fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] })
+    : new Response(url === 'https://www.wired.com/feed/rss' ? xml : '<rss><channel></channel></rss>'));
+  assert.deepEqual((await (await get()).json()).articles.map(a => a.url), financialGuides.map(a => a.url));
+});
+test('Samsung search retains earnings reporting instead of a consumer TV review', async () => {
+  const get = newsHandler(async url => new URL(url).hostname === 'newsapi.org' ? Response.json({ articles: [...consumerGuides, ...financialGuides] })
+    : fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] }) : new Response('<rss><channel></channel></rss>'));
+  assert.deepEqual((await (await get('?q=Samsung')).json()).articles.map(a => a.title), [financialGuides[1].title, financialGuides[7].title]);
+});
+test('healthy consumer-guide-only sources return a successful empty pool', async () => {
+  const get = newsHandler(async url => fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: consumerGuides }) : new Response('<rss><channel></channel></rss>'));
+  const response = await get(); assert.equal(response.status, 200); assert.equal(response.headers.get('x-news-data-partial'), null);
+  assert.deepEqual((await response.json()).articles, []);
+});
+
+const bestBuyNews = [
+  { title: 'Best Buy expands laptop trade-in program', url: 'https://example.test/best-buy-trade-in' },
+  { title: 'Best Buy opens new stores as demand for TVs recovers', url: 'https://example.test/best-buy-stores' },
+];
+for (const row of bestBuyNews) for (const host of Object.keys(fields)) test(`${host}: company name is not a best-product list: ${row.title}`, async () => {
+  const get = newsHandler(async url => {
+    const field = fields[new URL(url).hostname];
+    return field ? Response.json({ [field]: new URL(url).hostname === host ? [row, ...consumerGuides] : [] }) : new Response('<rss><channel></channel></rss>');
+  });
+  const response = await get(); assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).articles.map(a => a.title), [row.title]);
+});
+test('Best Buy search preserves company news but removes its consumer guides and reviews', async () => {
+  const get = newsHandler(async url => new URL(url).hostname === 'newsapi.org' ? Response.json({ articles: [...consumerGuides, ...bestBuyNews] })
+    : fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] }) : new Response('<rss><channel></channel></rss>'));
+  const response = await get('?q=Best%20Buy'); assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).articles.map(a => a.title), bestBuyNews.map(a => a.title));
+});
+
+for (const title of ['Best Samsung TVs for every budget', 'The best Apple laptops for students']) for (const host of Object.keys(fields)) {
+  test(`${host}: branded product list is excluded: ${title}`, async () => {
+    const company = { title: 'Samsung expands TV trade-in program', url: 'https://example.test/samsung-company-news' };
+    const get = newsHandler(async url => {
+      const field = fields[new URL(url).hostname];
+      return field ? Response.json({ [field]: new URL(url).hostname === host ? [{ title, url: 'https://example.test/branded-guide' }, company] : [] }) : new Response('<rss><channel></channel></rss>');
+    });
+    const response = await get(); assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).articles.map(a => a.title), [company.title]);
+  });
+}
+
+const policyGiftNews = [
+  { title: 'Government tightens rules on gifts for public officials', url: 'https://example.test/policy-gifts' },
+  { title: 'Banks tighten rules on gifts for employees after compliance review', url: 'https://example.test/bank-gifts' },
+];
+for (const row of policyGiftNews) for (const host of Object.keys(fields)) test(`${host}: gifts-for reporting is not a shopping guide: ${row.title}`, async () => {
+  const get = newsHandler(async url => {
+    const field = fields[new URL(url).hostname];
+    return field ? Response.json({ [field]: new URL(url).hostname === host ? [row, ...consumerGuides] : [] }) : new Response('<rss><channel></channel></rss>');
+  });
+  const response = await get(); assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).articles.map(a => a.title), [row.title]);
+});
+for (const kind of ['RSS', 'Atom']) test(`${kind}: gifts-for policy reporting survives beside gift guides`, async () => {
+  const rows = [consumerGuides[0], ...policyGiftNews];
+  const xml = kind === 'RSS' ? `<rss><channel>${rows.map(a => `<item><title>${a.title}</title><link>${a.url}</link></item>`).join('')}</channel></rss>`
+    : `<feed xmlns="http://www.w3.org/2005/Atom">${rows.map(a => `<entry><title>${a.title}</title><link href="${a.url}" /></entry>`).join('')}</feed>`;
+  const get = newsHandler(async url => fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] })
+    : new Response(url === 'https://www.wired.com/feed/rss' ? xml : '<rss><channel></channel></rss>'));
+  assert.deepEqual((await (await get()).json()).articles.map(a => a.title), policyGiftNews.map(a => a.title));
+});
+for (const [title, excluded] of [
+  ['Gifts for public officials: New ethics rules prohibit cameras', false],
+  ['Government publishes gift guide for public officials', false],
+  ['Gifts for Friends (2026): Headphones and Kitchen Essentials', true],
+  ['Gifts for runners: Our favorite headphones', true],
+]) test(`gift-guide evidence and policy context: ${title}`, async () => {
+  const get = newsHandler(async url => new URL(url).hostname === 'newsapi.org' ? Response.json({ articles: [{ title, url: 'https://example.test/gift-context' }] })
+    : fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] }) : new Response('<rss><channel></channel></rss>'));
+  const response = await get(); assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).articles.map(a => a.title), excluded ? [] : [title]);
+});
+
+const officialReviewNews = [
+  { title: 'Regulators launch smartphone market review', url: 'https://example.test/market-review' },
+  { title: 'Government orders laptop security review', url: 'https://example.test/security-review' },
+];
+for (const row of officialReviewNews) for (const host of Object.keys(fields)) test(`${host}: official review is not a consumer review: ${row.title}`, async () => {
+  const get = newsHandler(async url => {
+    const field = fields[new URL(url).hostname];
+    return field ? Response.json({ [field]: new URL(url).hostname === host ? [row, ...consumerGuides] : [] }) : new Response('<rss><channel></channel></rss>');
+  });
+  const response = await get(); assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).articles.map(a => a.title), [row.title]);
+});
+for (const kind of ['RSS', 'Atom']) test(`${kind}: official reviews survive beside consumer reviews`, async () => {
+  const rows = [consumerGuides[1], ...officialReviewNews];
+  const xml = kind === 'RSS' ? `<rss><channel>${rows.map(a => `<item><title>${a.title}</title><link>${a.url}</link></item>`).join('')}</channel></rss>`
+    : `<feed xmlns="http://www.w3.org/2005/Atom">${rows.map(a => `<entry><title>${a.title}</title><link href="${a.url}" /></entry>`).join('')}</feed>`;
+  const get = newsHandler(async url => fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] })
+    : new Response(url === 'https://www.wired.com/feed/rss' ? xml : '<rss><channel></channel></rss>'));
+  assert.deepEqual((await (await get()).json()).articles.map(a => a.title), officialReviewNews.map(a => a.title));
+});
+for (const [title, excluded] of [
+  ['Samsung launches smartphone review after complaints', false],
+  ['EU opens laptop review', false],
+  ['Samsung TV Review: A better picture', true],
+  ['Samsung phone review: New security features', true],
+  ['Security Camera Review: Our verdict', true],
+  ['Smartphone market review: Shipments increase', false],
+]) test(`consumer versus official review context: ${title}`, async () => {
+  const get = newsHandler(async url => new URL(url).hostname === 'newsapi.org' ? Response.json({ articles: [{ title, url: 'https://example.test/review-context' }] })
+    : fields[new URL(url).hostname] ? Response.json({ [fields[new URL(url).hostname]]: [] }) : new Response('<rss><channel></channel></rss>'));
+  const response = await get(); assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).articles.map(a => a.title), excluded ? [] : [title]);
+});

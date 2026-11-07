@@ -279,6 +279,30 @@ function isPromotion(article: Article): boolean {
   return shopping && savings;
 }
 
+function isConsumerGuide(article: Article): boolean {
+  const title = article.title;
+  // Personal-finance guides and reporting about companies remain editorial news.
+  const financial = /\b(?:stocks?|shares?|bonds?|etfs?|invest(?:ing|ments?|ors?)|retirement|pensions?|mortgages?|loans?|tax(?:es|ation)?|earnings|revenues?|profits?|valuations?|dividends?|analysts?)\b|\b(?:credit\s+cards?|(?:bank|savings)\s+accounts?|interest\s+rates?|mutual\s+funds?)\b/i.test(title);
+  if (financial) return false;
+  const giftPolicy = /\b(?:governments?|officials?|rules?|laws?|regulations?|ethics|compliance|investigations?|bribery|corruption)\b/i.test(title);
+  if (!giftPolicy && /\bgift\s+(?:ideas|guides?)\b|\b(?:best|top)\s+gifts?\b/i.test(title)) return true;
+  const productPattern = /\b(?:smartphones?|phones?|iphones?|tablets?|laptops?|tvs?|televisions?|oled|cameras?|headphones?|earbuds?|speakers?|smartwatches?|routers?|printers?|monitors?|mattresses?|blenders?|appliances?)\b|\b(?:leaf\s+blowers?|coffee\s+makers?|vacuum\s+cleaners?|air\s+purifiers?|gaming\s+consoles?|kitchen\s+(?:tools|essentials))\b/i;
+  const product = productPattern.test(title);
+  // A best-product label must lead into a category, not a company name like Best Buy.
+  const descriptors = 'budget|affordable|wireless|noise[- ]cancell?ing|portable|gaming|smart|cordless|electric|4k';
+  const brands = 'apple|samsung|sony|lg|dell|hp|lenovo|asus|acer|microsoft|google|amazon|bose|jbl|sonos|sennheiser|dyson|shark|ninja|philips|panasonic|tcl|hisense|canon|nikon|gopro|logitech|razer|garmin|fitbit|anker|irobot|ego|android|windows';
+  const bestList = new RegExp(`^(?:the\\s+)?best\\s+(?:(?:${descriptors}|${brands})\\s+){0,3}(?:${productPattern.source})`, 'i').test(title);
+  // A recipient phrase alone also occurs in policy and compliance reporting.
+  const recipientGiftGuide = !giftPolicy && /^gifts?\s+for\b[^:]*:\s*\S/i.test(title);
+  const reviewLabel = /\breview(?:\s*\(\d{4}\))?\s*(?::|[–—-]|$)/i.exec(title);
+  // Classify the subject before the label; product-review subtitles may discuss security.
+  const reviewLead = reviewLabel ? title.slice(0, reviewLabel.index + 'review'.length) : '';
+  const officialReview = /\b(?:governments?|regulators?|officials?|authorities|agencies|commissions?|courts?|banks?)\b.*\breview\b|\b(?:launches|launched|orders|ordered|opens|opened|starts|started|initiates|initiated|conducts|conducted|completes|completed|requests|requested|begins|began)\b.*\breview\b|\b(?:market|security|safety|compliance|antitrust|competition|regulatory|policy|judicial|ethics)\s+review\b/i.test(reviewLead);
+  const consumerReview = reviewLabel !== null && !officialReview;
+  const guide = recipientGiftGuide || bestList || consumerReview || /\b(?:buying|buyer['’]?s?)\s+guides?\b/i.test(title);
+  return product && guide;
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
@@ -327,7 +351,7 @@ export async function GET(request: NextRequest) {
     if (!Number.isFinite(bTime)) return -1;
     return bTime - aTime;
   });
-  const editorial = pool.filter(article => !isPromotion(article));
+  const editorial = pool.filter(article => !isPromotion(article) && !isConsumerGuide(article));
   const deduped = deduplicate(q ? editorial.filter((a) => ((a.title || '') + ' ' + (a.description || '')).toLowerCase().includes(q.toLowerCase())) : editorial);
   const apiSlots = deduped.filter(a => a.provider === 'api').slice(0, 2);
   const rest = deduped.filter(a => a.provider !== 'api');
