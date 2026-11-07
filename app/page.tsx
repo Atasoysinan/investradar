@@ -117,7 +117,10 @@ export default function Home() {
     let active = true;
     let latestRequest = 0;
     let controller: AbortController | null = null;
+    let searchTimer: ReturnType<typeof setTimeout> | undefined;
+    let interval: ReturnType<typeof setInterval> | undefined;
     async function fetchNews() {
+      if (!active || document.visibilityState !== 'visible') return;
       const request = ++latestRequest;
       controller?.abort();
       controller = new AbortController();
@@ -142,9 +145,26 @@ export default function Home() {
         if (isCurrent()) setLoading(false);
       }
     }
-    void fetchNews();
-    const id = setInterval(() => { setLoading(true); setError(''); void fetchNews(); }, 300000);
-    return () => { active = false; controller?.abort(); clearInterval(id); };
+    function pause() {
+      clearTimeout(searchTimer);
+      clearInterval(interval);
+      ++latestRequest;
+      controller?.abort();
+    }
+    function resume() {
+      pause();
+      if (document.visibilityState !== 'visible') return;
+      const refresh = () => {
+        if (!active || document.visibilityState !== 'visible') return;
+        setLoading(true); setError(''); void fetchNews();
+      };
+      if (query) searchTimer = setTimeout(refresh, 300);
+      else refresh();
+      interval = setInterval(refresh, 300000);
+    }
+    document.addEventListener('visibilitychange', resume);
+    resume();
+    return () => { active = false; pause(); document.removeEventListener('visibilitychange', resume); };
   }, [query, refreshVersion]);
 
   useEffect(() => {

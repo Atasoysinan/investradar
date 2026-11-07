@@ -84,6 +84,8 @@ If a nonempty news pool contains no valid articles, the briefs endpoint returns 
 
 ## News promotion filtering
 
+Homepage search waits for a 300 ms pause in typing before requesting news; clearing the query reloads the default feed immediately. Query changes cancel the previous request immediately, including during the debounce window. News and ticker polling stop while the document is hidden, cancel in-flight requests and resume with one refresh cycle when it becomes visible. Pending search timers, polling timers and visibility listeners are removed on unmount. The visible-page polling intervals remain five minutes for news and one minute for ticker quotes.
+
 Product-review labels are checked against their preceding subject: government/regulator actions, formal review verbs and market/security/compliance review topics do not count as consumer evaluations. Text after the review label is not used for that distinction, so a consumer camera review or a phone review discussing security features remains filterable.
 
 "Gifts for" alone is not exclusion evidence. Recipient headings must start the title, have a colon-delimited guide format and include a recognized product category. Gift-based matching is suppressed by explicit government, ethics, rules or compliance context; ordinary policy and banking reporting remains available.

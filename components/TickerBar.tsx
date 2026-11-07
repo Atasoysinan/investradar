@@ -19,11 +19,17 @@ export default function TickerBar() {
   const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
-    const controller = new AbortController();
+    let active = true;
+    let controller: AbortController | undefined;
+    let interval: ReturnType<typeof setInterval> | undefined;
     const load = async () => {
+      if (!active || document.visibilityState !== 'visible') return;
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
       try {
-        const data = await fetchJson(`/api/market?symbols=${SYMBOLS.join(',')}`, { signal: controller.signal }, 12000);
-        if (controller.signal.aborted) return;
+        const data = await fetchJson(`/api/market?symbols=${SYMBOLS.join(',')}`, { signal: request.signal }, 12000);
+        if (request.signal.aborted) return;
         if (Array.isArray(data)) {
           const valid = data.filter((q: Quote) => q.c > 0);
           if (valid.length > 0) setQuotes(valid);
@@ -33,9 +39,19 @@ export default function TickerBar() {
         // silently fail — ticker is non-critical
       }
     };
-    load();
-    const interval = setInterval(load, 60_000);
-    return () => { clearInterval(interval); controller.abort(); };
+    function pause() {
+      clearInterval(interval);
+      controller?.abort();
+    }
+    function resume() {
+      pause();
+      if (document.visibilityState !== 'visible') return;
+      void load();
+      interval = setInterval(load, 60_000);
+    }
+    document.addEventListener('visibilitychange', resume);
+    resume();
+    return () => { active = false; pause(); document.removeEventListener('visibilitychange', resume); };
   }, []);
 
   if (quotes.length === 0) return null;
