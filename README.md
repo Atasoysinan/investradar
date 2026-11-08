@@ -82,6 +82,20 @@ The model selects and ranks article IDs; it does not supply displayed prose or c
 
 If a nonempty news pool contains no valid articles, the briefs endpoint returns a generic non-cacheable `502` before calling the AI provider, including in debug mode. A genuinely empty news pool remains a successful empty result; mixed pools retain their valid articles.
 
+## Request traffic tracking
+
+`proxy.ts` emits one JSON log per incoming application request with event `investradar.request` and schema version 1. Records contain the UTC day, deployment environment, normalized endpoint, method, user-agent bot hint, request kind and count. Dynamic stock/crypto/auth paths and unknown paths are grouped into fixed labels. Raw IPs, user agents, query strings, cookies, authorization headers and request bodies are not logged. Bot labels are unverified user-agent claims; `unclassified` does not mean human. API requests, page navigations, RSC requests and prefetches are counted as requests, not unique users or page views.
+
+Only shipped root static assets (`favicon.ico` and the SVG files in `public/`) and Next internals are excluded to avoid unnecessary proxy/logging work. Arbitrary dotted paths such as `/wp-login.php`, `/.env` and `/backup.zip` reach tracking and are grouped into anonymous labels. New public assets must be added to the literal matcher exclusion list; a regression test checks all shipped public files. This is application traffic accounting, **not the complete Vercel CDN/edge billing count**: platform-blocked requests, platform redirects, excluded assets and requests that never reach Proxy are outside its scope. Proxy records arrival, including requests later rejected by route limiters; it does not measure the final response status or latency. Logging adds a Proxy invocation/log record per matched request, but no Redis commands or external HTTP calls. Telemetry errors never block routing.
+
+Export retained JSONL logs and generate a local report:
+
+```sh
+node scripts/report-traffic.mjs < traffic.jsonl > traffic-report.json
+```
+
+The command accepts plain JSON event lines or JSONL log envelopes whose `message` contains the JSON event. It ignores unrelated/invalid lines and reports their count. Output includes daily totals separated by environment and a daily endpoint/bot/method/request-kind breakdown. Use non-overlapping exports of the same deployment scope: duplicate records/exports count twice. Preview/development traffic is separated from production. No extra configuration, dependencies or credentials are required. Logs are subject to the hosting plan's retention and delivery limits; missing, expired or sampled records cannot be reconstructed. Export daily for durable history; no automatic export, alerting or external storage is provisioned by this change. Nothing is collected from historical traffic or production until this code is released.
+
 ## News promotion filtering
 
 Homepage search waits for a 300 ms pause in typing before requesting news; clearing the query reloads the default feed immediately. Query changes cancel the previous request immediately, including during the debounce window. News and ticker polling stop while the document is hidden and cancel in-flight requests. On return, successful news remains fresh for five minutes and usable ticker quotes for one minute, measured from response completion. Fresh data schedules only the remaining time until refresh; repeated tab switches cannot extend the deadline. Failed or cancelled refreshes are retried on return. New queries and manual search submission bypass previous-query freshness. Pending search/refresh timers, polling timers and visibility listeners are removed on unmount. The visible-page polling intervals remain five minutes for news and one minute for ticker quotes.
