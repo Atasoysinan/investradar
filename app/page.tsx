@@ -119,8 +119,11 @@ export default function Home() {
     let controller: AbortController | null = null;
     let searchTimer: ReturnType<typeof setTimeout> | undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
+    let lastSuccess: number | null = null;
+    let refreshNeeded = true;
     async function fetchNews() {
       if (!active || document.visibilityState !== 'visible') return;
+      refreshNeeded = true;
       const request = ++latestRequest;
       controller?.abort();
       controller = new AbortController();
@@ -138,6 +141,8 @@ export default function Home() {
         setError('');
         setPartialNews(headers.get('X-News-Data-Partial') === 'true');
         setArticles(data.articles.filter((a: Article) => a && a.title !== '[Removed]'));
+        lastSuccess = Date.now();
+        refreshNeeded = false;
       } catch (error) {
         if (isCurrent()) setError(error instanceof DataRequestTimeout
           ? 'News took too long. Please try again.' : 'News is temporarily unavailable. Please try again.');
@@ -158,9 +163,15 @@ export default function Home() {
         if (!active || document.visibilityState !== 'visible') return;
         setLoading(true); setError(''); void fetchNews();
       };
-      if (query) searchTimer = setTimeout(refresh, 300);
-      else refresh();
-      interval = setInterval(refresh, 300000);
+      const startPolling = () => {
+        if (!active || document.visibilityState !== 'visible') return;
+        refresh();
+        interval = setInterval(refresh, 300000);
+      };
+      const remaining = lastSuccess === null ? 0 : Math.max(0, 300000 - (Date.now() - lastSuccess));
+      if (!refreshNeeded && remaining > 0) searchTimer = setTimeout(startPolling, remaining);
+      else if (query) searchTimer = setTimeout(startPolling, 300);
+      else startPolling();
     }
     document.addEventListener('visibilitychange', resume);
     resume();

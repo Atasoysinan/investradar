@@ -15,12 +15,14 @@ function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: 
   const listeners = new Set();
   const document = { visibilityState: hidden ? 'hidden' : 'visible', addEventListener: (_, fn) => listeners.add(fn), removeEventListener: (_, fn) => listeners.delete(fn) };
   const intervals = new Map();
+  let now = 1_000_000;
+  class ClockDate extends Date { static now() { return now; } }
   let cursor = 0, effectCursor = 0, tree, intervalId = 0;
   const exports = {};
   vm.runInNewContext(ts.transpileModule(source, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText, {
-    exports, URL, Date, AbortController, document, ...pageTimers,
+    exports, URL, Date: ClockDate, AbortController, document, ...pageTimers,
     window: { addEventListener() {}, removeEventListener() {} },
     setInterval: (fn, ms) => { intervals.set(++intervalId, { fn, ms }); return intervalId; },
     clearInterval: id => intervals.delete(id),
@@ -70,7 +72,7 @@ function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: 
   }
   render();
   return {
-    timers, expire, intervals, listeners, briefsError: () => state[4],
+    timers, expire, intervals, listeners, advanceClock(ms) { now += ms; }, briefsError: () => state[4],
     visibility(value) { document.visibilityState = value; listeners.forEach(fn => fn()); render(); },
     requests, text: () => text(tree),
     briefLinks: () => {
@@ -90,6 +92,41 @@ function harness({ briefsResponse = () => Response.json({ status: 'ok', briefs: 
   };
 }
 const result = title => Response.json({ status: 'ok', articles: [{title,description:'',url:'https://example.test/story',publishedAt:'2026-10-24T00:00:00Z',source:{name:'Test'}}] });
+
+test('fresh news survives tab switching without requests or extending its five-minute deadline', async () => {
+  const h = harness();
+  try {
+    h.requests[0].resolve(result('Fresh news')); await h.settle();
+    h.visibility('hidden'); h.advanceClock(10000); h.visibility('visible');
+    assert.equal(h.requests.length, 1); assert.equal(h.loading(), false);
+    assert.equal([...h.timers.values()][0].ms, 290000);
+    h.visibility('hidden'); h.advanceClock(10000); h.visibility('visible');
+    assert.equal(h.requests.length, 1); assert.equal([...h.timers.values()][0].ms, 280000);
+    h.advanceClock(280000); h.expire(280000); assert.equal(h.requests.length, 2);
+  } finally { h.cleanup(); }
+});
+
+test('expired news reloads on return, but changed and manually submitted queries bypass freshness', async () => {
+  const h = harness();
+  try {
+    h.requests[0].resolve(result('Original')); await h.settle();
+    h.visibility('hidden'); h.advanceClock(300000); h.visibility('visible'); assert.equal(h.requests.length, 2);
+    h.requests[1].resolve(result('Fresh')); await h.settle();
+    h.search('Apple'); assert.equal(h.requests.length, 3);
+    h.requests[2].resolve(result('Apple')); await h.settle();
+    h.submit(); assert.equal(h.requests.length, 4);
+  } finally { h.cleanup(); }
+});
+
+test('failed news refresh is retried on return rather than marking old data fresh', async () => {
+  const h = harness();
+  try {
+    h.requests[0].resolve(result('Original')); await h.settle(); h.poll();
+    h.requests[1].resolve(new Response('', { status: 503 })); await h.settle();
+    h.visibility('hidden'); h.visibility('visible');
+    assert.equal(h.requests.length, 3); assert.deepEqual(h.titles(), ['Original']);
+  } finally { h.cleanup(); }
+});
 
 test('rapid typing starts only the final search after 300ms and cancels the old response immediately', async () => {
   const h = harness();
@@ -128,8 +165,8 @@ test('hidden homepage cancels polling and in-flight news, then resumes one polli
     h.requests[1].resolve(result('Resumed result')); await h.settle();
     assert.deepEqual(h.titles(), ['Resumed result']);
     for (let i = 0; i < 3; i++) { h.visibility('hidden'); h.visibility('visible'); }
-    assert.equal(h.intervals.size, 1);
-    const queuedAfterUnmount = [...h.intervals.values()][0].fn, count = h.requests.length, wasLoading = h.loading();
+    assert.equal(h.intervals.size, 0); assert.equal(h.timers.size, 1);
+    const queuedAfterUnmount = [...h.timers.values()][0].fn, count = h.requests.length, wasLoading = h.loading();
     h.cleanup(); queuedAfterUnmount();
     assert.equal(h.requests.length, count); assert.equal(h.loading(), wasLoading);
   } finally { h.cleanup(); }
