@@ -22,8 +22,12 @@ export default function TickerBar() {
     let active = true;
     let controller: AbortController | undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    let lastSuccess: number | null = null;
+    let refreshNeeded = true;
     const load = async () => {
       if (!active || document.visibilityState !== 'visible') return;
+      refreshNeeded = true;
       controller?.abort();
       const request = new AbortController();
       controller = request;
@@ -32,7 +36,11 @@ export default function TickerBar() {
         if (request.signal.aborted) return;
         if (Array.isArray(data)) {
           const valid = data.filter((q: Quote) => q.c > 0);
-          if (valid.length > 0) setQuotes(valid);
+          if (valid.length > 0) {
+            setQuotes(valid);
+            lastSuccess = Date.now();
+            refreshNeeded = false;
+          }
           // if all prices are zero (market closed), keep existing quotes
         }
       } catch {
@@ -41,13 +49,20 @@ export default function TickerBar() {
     };
     function pause() {
       clearInterval(interval);
+      clearTimeout(refreshTimer);
       controller?.abort();
     }
     function resume() {
       pause();
       if (document.visibilityState !== 'visible') return;
-      void load();
-      interval = setInterval(load, 60_000);
+      const startPolling = () => {
+        if (!active || document.visibilityState !== 'visible') return;
+        void load();
+        interval = setInterval(load, 60_000);
+      };
+      const remaining = lastSuccess === null ? 0 : Math.max(0, 60_000 - (Date.now() - lastSuccess));
+      if (!refreshNeeded && remaining > 0) refreshTimer = setTimeout(startPolling, remaining);
+      else startPolling();
     }
     document.addEventListener('visibilitychange', resume);
     resume();
