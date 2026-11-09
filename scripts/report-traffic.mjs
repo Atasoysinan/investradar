@@ -15,6 +15,13 @@ export function createTrafficReport() {
       try {
         let record = JSON.parse(line);
         if (typeof record?.message === 'string') record = JSON.parse(record.message);
+        let coverage = 'full-v1';
+        if (Array.isArray(record)) {
+          if (record.length !== 8 || record[0] !== 'ir.req' || record[1] !== 2) { ignored++; return; }
+          const [, , day, environment, endpoint, method, bot, kind] = record;
+          record = { event: 'investradar.request', version: 1, day, environment, endpoint, method, bot, kind, count: 1 };
+          coverage = 'selective-v2';
+        }
         if (record?.event !== 'investradar.request' || record.version !== 1 || record.count !== 1
           || typeof record.day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record.day)
           || new Date(`${record.day}T00:00:00Z`).toISOString().slice(0, 10) !== record.day
@@ -22,7 +29,7 @@ export function createTrafficReport() {
           || !endpoints.has(record.endpoint) || !bots.has(record.bot)
           || !['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'OTHER'].includes(record.method)
           || !['api', 'page', 'prefetch', 'rsc'].includes(record.kind)) { ignored++; return; }
-        const dimensions = { day: record.day, environment: record.environment, endpoint: record.endpoint,
+        const dimensions = { day: record.day, environment: record.environment, coverage, endpoint: record.endpoint,
           bot: record.bot, method: record.method, kind: record.kind };
         const key = JSON.stringify(dimensions);
         const bucket = buckets.get(key) || { ...dimensions, requests: 0 };
@@ -34,8 +41,8 @@ export function createTrafficReport() {
         || JSON.stringify(a).localeCompare(JSON.stringify(b)));
       const daily = new Map();
       for (const row of rows) {
-        const key = `${row.day}:${row.environment}`;
-        const day = daily.get(key) || { day: row.day, environment: row.environment, requests: 0 };
+        const key = `${row.day}:${row.environment}:${row.coverage}`;
+        const day = daily.get(key) || { day: row.day, environment: row.environment, coverage: row.coverage, requests: 0 };
         day.requests += row.requests; daily.set(key, day);
       }
       return { timezone: 'UTC', accepted, ignored, daily: [...daily.values()], breakdown: rows };

@@ -43,3 +43,11 @@ export function trafficRecord(request: { nextUrl: { pathname: string }; method: 
     count: 1,
   };
 }
+
+// Version 2 omits repeated JSON property names, not request dimensions or counts.
+// Layout: [event, version, UTC day, environment, endpoint, method, bot hint, kind].
+export function trafficLog(request: { nextUrl: { pathname: string }; method: string; headers: Headers },
+  environment: string | undefined, now = new Date()): string {
+  const row = trafficRecord(request, environment, now);
+  return JSON.stringify(['ir.req', 2, row.day, row.environment, row.endpoint, row.method, row.bot, row.kind]);
+}
