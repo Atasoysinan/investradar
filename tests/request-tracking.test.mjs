@@ -182,5 +182,7 @@ test('report ignores unrelated/malformed records without echoing their contents'
   for (const line of ['private-secret', 'null', '{}', JSON.stringify({ message: 'private-secret' }),
     JSON.stringify({ ...good, count: 99 }), JSON.stringify({ ...good, endpoint: '/private-secret' }),
     JSON.stringify({ ...good, bot: 'private-secret' }), JSON.stringify({ ...good, day: '2026-99-99' })]) report.add(line);
-  assert.deepEqual(report.result(), { timezone: 'UTC', accepted: 0, ignored: 8, daily: [], breakdown: [] });
+  const { budget, ...counts } = report.result();
+  assert.deepEqual(counts, { timezone: 'UTC', accepted: 0, ignored: 8, daily: [], breakdown: [] });
+  assert.deepEqual(budget.daily, []);
 });
