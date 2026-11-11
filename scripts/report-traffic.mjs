@@ -7,6 +7,42 @@ const endpoints = new Set(['/', '/markets', '/videos', '/robots.txt', '/sitemap.
   ...['briefs', 'breaking-news', 'penny', 'market', 'trending', 'etfs', 'global-news', 'news', 'subscribe',
     'stocktwits-feed', 'stocktwits', 'topic-news', 'sectors', 'crypto'].map(name => `/api/${name}`)]);
 
+const DAILY_BUDGET = 23000;
+const THRESHOLDS = [
+  { level: 'info', percent: 50, requests: 11500 },
+  { level: 'warning', percent: 70, requests: 16100 },
+  { level: 'critical', percent: 90, requests: 20700 },
+  { level: 'budget_reached', percent: 100, requests: 23000 },
+];
+
+function budgetReport(daily) {
+  const days = new Map();
+  for (const row of daily) {
+    // Preview and production share the hosting allowance; local development does not.
+    if (row.environment === 'development') continue;
+    const day = days.get(row.day) || { day: row.day, observedRequests: 0 };
+    day.observedRequests += row.requests;
+    days.set(row.day, day);
+  }
+  return {
+    dailyRequests: DAILY_BUDGET,
+    thresholds: THRESHOLDS.map(threshold => ({ ...threshold })),
+    basis: 'observed_application_logs',
+    environments: ['production', 'preview'],
+    platformUsageVerified: false,
+    notice: 'Observed logs are incomplete platform coverage, not Vercel billing totals or remaining quota. Below-threshold counts do not establish safety. Use non-overlapping exports; duplicate records are counted again. Verify total usage in Vercel.',
+    daily: [...days.values()].map(day => ({
+      ...day,
+      // Truncate hundredths so the display cannot reach a threshold before the count.
+      observedBudgetPercent: Math.floor(day.observedRequests * 10000 / DAILY_BUDGET) / 100,
+      level: THRESHOLDS.filter(threshold => day.observedRequests >= threshold.requests).at(-1)?.level
+        || 'below_observed_threshold',
+      reachedThresholds: THRESHOLDS.filter(threshold => day.observedRequests >= threshold.requests)
+        .map(threshold => threshold.level),
+    })),
+  };
+}
+
 export function createTrafficReport() {
   const buckets = new Map();
   let accepted = 0, ignored = 0;
@@ -45,7 +81,9 @@ export function createTrafficReport() {
         const day = daily.get(key) || { day: row.day, environment: row.environment, coverage: row.coverage, requests: 0 };
         day.requests += row.requests; daily.set(key, day);
       }
-      return { timezone: 'UTC', accepted, ignored, daily: [...daily.values()], breakdown: rows };
+      const dailyRows = [...daily.values()];
+      return { timezone: 'UTC', accepted, ignored, daily: dailyRows, breakdown: rows,
+        budget: budgetReport(dailyRows) };
     },
   };
 }
